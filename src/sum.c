@@ -9,8 +9,8 @@
 #endif // #ifndef __aarch64__
 
 #include <arm_neon.h>
-#include <stdio.h> // printf
-#include <stdlib.h> // atoi
+#include <stdio.h>    // printf
+#include <stdlib.h>   // atoi
 
 typedef int           i32;
 typedef unsigned int  u32;

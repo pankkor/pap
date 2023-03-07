@@ -11,10 +11,10 @@ for src in src/*.c; do
 
   case "$1" in
     asm)
-      clang $cc_asm_flags $CC_ASM_FLAGS "$src" -o "build/$basename_wo_ext".s
+      clang $cc_asm_flags $CC_ASM_FLAGS "$src" -o "build/$basename_wo_ext".s || exit $?
       ;;
     *)
-      clang $cc_flags "$src" -o "build/$basename_wo_ext"
+      clang $cc_flags "$src" -o "build/$basename_wo_ext" || exit $?
       ;;
   esac
 done
