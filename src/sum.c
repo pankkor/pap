@@ -9,8 +9,8 @@
 #endif // #ifndef __aarch64__
 
 #include <arm_neon.h>
-#include <stdio.h> // printf
-#include <stdlib.h> // atoi
+#include <stdio.h>    // printf
+#include <stdlib.h>   // atoi
 
 typedef int           i32;
 typedef unsigned int  u32;
@@ -263,7 +263,7 @@ static FORCE_INLINE u32 sum_neon32(u64 count, u32 * restrict in) {
   return vaddvq_u32(t);
 }
 
-enum { ARR_CAPACITY = 12 * 1024 * 1024 };
+enum {ARR_CAPACITY = 12 * 1024 * 1024};
 ALIGNED(128) u32 s_arr[ARR_CAPACITY] = {0}; // big enough
 u64 s_arr_size = 4096;
 
