@@ -24,3 +24,4 @@ target per source file. With `asm` argument the output is an assembly file.
 - `.lvimrc`             - vim local config. Ignore if you don't use vim
 - `build.sh`            - build script
 - `compile_flags.txt`   - list of compilation flags used by clangd and build.sh
+- `live.sh`             - live coding environment (requires 'entr' utility)
