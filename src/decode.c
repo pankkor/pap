@@ -4,11 +4,7 @@
 // Part 1
 // 8086 instructions decode
 //
-// Workflow
-// - Use NASM to assemble *.asm files
-// - Use `decode` to disassemble assembled files
-// - Use NASM to reassembled decoded file
-// - Compare assembled and reassembled files
+// Run 'test_decode.sh' that tests decoding on all the listings in listings dir
 
 #include <assert.h>     // assert
 #include <unistd.h>     // lseek
