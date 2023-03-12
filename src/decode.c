@@ -21,51 +21,38 @@ typedef unsigned short  u16;
 typedef unsigned long   u64;
 
 #define FORCE_INLINE    inline __attribute__((always_inline))
+#define ARRAY_COUNT(x)  (u64)(sizeof(x) / sizeof(x[0]))
 
-FORCE_INLINE const char *str_reg_byte(u8 o) {
+const char s_reg_b_strs[][3] = {"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"};
+const char s_reg_w_strs[][3] = {"ax", "cx", "dx", "bx", "sp", "bp", "si", "di"};
+const char s_seg_strs[][3]   = {"es", "cs", "ss", "ds"};
+
+const char *str_instr(u8 o) {
   assert(o < 8 && "Octal expected");
-  switch (o) {
-    case 0: return "al";
-    case 1: return "cl";
-    case 2: return "dl";
-    case 3: return "bl";
-    case 4: return "ah";
-    case 5: return "ch";
-    case 6: return "dh";
-    case 7: return "bh";
+  switch(o) {
+    case 0: return "add";
+    case 2: return "adc";
+    case 3: return "sbb";
+    case 5: return "sub";
+    case 7: return "cmp";
   }
   return "<error>";
 }
 
+FORCE_INLINE const char *str_reg_byte(u8 o) {
+  assert(o < ARRAY_COUNT(s_reg_b_strs) && "Octal expected");
+  return s_reg_b_strs[o];
+}
+
 FORCE_INLINE const char *str_reg_word(u8 o) {
-  assert(o < 8 && "Octal expected");
-  switch (o) {
-    case 0: return "ax";
-    case 1: return "cx";
-    case 2: return "dx";
-    case 3: return "bx";
-    case 4: return "sp";
-    case 5: return "bp";
-    case 6: return "si";
-    case 7: return "di";
-  }
-  return "<error>";
+  assert(o < ARRAY_COUNT(s_reg_w_strs) && "Octal expected");
+  return s_reg_w_strs[o];
 }
 
 // TODO: unused
 FORCE_INLINE const char *str_seg_reg(u8 o) {
-  assert(o < 8 && "Octal expected");
-  switch (o) {
-    case 0: return "es";
-    case 1: return "cs";
-    case 2: return "ss";
-    case 3: return "ds";
-    case 4:
-    case 5:
-    case 6:
-    case 7: return "<reserved>";
-  }
-  return "<error>";
+  assert(o < ARRAY_COUNT(s_seg_strs) && "Octal expected");
+  return s_seg_strs[o];
 }
 
 struct stream {
@@ -148,14 +135,14 @@ struct ea effective_address(u8 rm, u8 mod) {
   }
 
   switch (rm) {
-    case 0: return (struct ea) {"bx", "si", mod};
-    case 1: return (struct ea) {"bx", "di", mod};
-    case 2: return (struct ea) {"bp", "si", mod};
-    case 3: return (struct ea) {"bp", "di", mod};
-    case 4: return (struct ea) {"si", NULL, mod};
-    case 5: return (struct ea) {"di", NULL, mod};
-    case 6: return (struct ea) {"bp", NULL, mod};
-    case 7: return (struct ea) {"bx", NULL, mod};
+    case 0: return (struct ea){"bx", "si", mod};
+    case 1: return (struct ea){"bx", "di", mod};
+    case 2: return (struct ea){"bp", "si", mod};
+    case 3: return (struct ea){"bp", "di", mod};
+    case 4: return (struct ea){"si", NULL, mod};
+    case 5: return (struct ea){"di", NULL, mod};
+    case 6: return (struct ea){"bp", NULL, mod};
+    case 7: return (struct ea){"bx", NULL, mod};
   }
   return (struct ea){0};
 }
@@ -178,6 +165,109 @@ void print_ea(struct ea ea, i16 displ) {
   printf("]");
 }
 
+
+// 1st byte -> whole instruciton
+//          -> instruction data part1
+// -> (2nd byte (src, dst,  )
+
+// decode 1st byte
+// jump to (RM_REG
+// RM_REG
+
+enum instr_fmt {
+  INSTR_FMT_NO_DATA = 0,
+  INSTR_FMT_DISPL,
+  INSTR_FMT_DISPL_DATA_W,
+  INSTR_FMT_DATA_W,
+  INSTR_FMT_DATA_8,
+  INSTR_FMT_DATA_16,
+};
+
+struct instr {
+  u8 instr;
+  const char *str;
+  enum instr_fmt fmt;
+};
+
+// Instructio tables
+struct instr s_E7_instrs[] = {
+  {0x06, "push",  INSTR_FMT_NO_DATA},     // 000r g110    - push SEG
+  {0x07, "pop",   INSTR_FMT_NO_DATA}      // 000r g111    - pop SEG
+};
+
+struct instr s_F0_instrs[] = {
+  {0xB0, "mov",   INSTR_FMT_DATA_W},      // 1011 wreg    - mov IMM to REG
+};
+
+struct instr s_F8_instrs[] = {
+  {0x50, "push",  INSTR_FMT_NO_DATA},     // 0101 0reg    - push REG
+  {0x58, "pop",   INSTR_FMT_NO_DATA},     // 0101 1reg    - pop REG
+};
+
+struct instr s_FC_instrs[] = {
+  {0x88, "mov",   INSTR_FMT_DISPL},       // 1000 10dw    - mov R/M to/from REG
+  {0xA0, "mov",   INSTR_FMT_DATA_16},     // 1010 00dw    - mov mem to/from ACC
+  {0x00, "add",   INSTR_FMT_DISPL},       // 0000 00dw    - add R/M + REG
+  {0x80, "add",   INSTR_FMT_DISPL_DATA_W},// 0000 00dw    - add imm + R/M
+};
+
+struct instr s_FE_instrs[] = {
+  {0xC6, "mov",   INSTR_FMT_DISPL_DATA_W},// 1100 011w    - mov imm to R/M
+  {0x04, "add",   INSTR_FMT_DATA_16},     // 0000 00dw    - add imm + ACC
+};
+
+struct instr s_FF_instrs[] = {
+  {0x8C, "mov",   INSTR_FMT_DISPL},       // 1000 1100    - mov SEG to R/M
+  {0x8E, "mov",   INSTR_FMT_DISPL},       // 1000 1110    - mov R/M to SEG
+  {0x8F, "pop",   INSTR_FMT_DISPL},       // 1000 1111    - pop R/M
+  {0xFF, "push",  INSTR_FMT_DISPL},       // 1111 1111    - push R/M
+};
+
+enum instr_mask {
+  INSTR_MASK_E7 = 0,  // 111X X111
+  INSTR_MASK_F0 = 1,  // 1111 XXXX
+  INSTR_MASK_F8 = 2,  // 1111 1XXX
+  INSTR_MASK_FC = 3,  // 1111 11XX
+  INSTR_MASK_FE = 4,  // 1111 111X
+  INSTR_MASK_FF = 5,  // 1111 1111
+  INSTR_MASK_COUNT = 6
+};
+
+u8 s_instr_masks[] = { 0xE7, 0xF0, 0xF8, 0xFC, 0xFE, 0xFF };
+
+struct instrs_table {
+  struct instr *instrs;
+  u64 size;
+};
+
+struct instrs_table s_instr_tables[] = {
+  {s_E7_instrs, ARRAY_COUNT(s_E7_instrs)},
+  {s_F0_instrs, ARRAY_COUNT(s_F0_instrs)},
+  {s_F8_instrs, ARRAY_COUNT(s_F8_instrs)},
+  {s_FC_instrs, ARRAY_COUNT(s_FC_instrs)},
+  {s_FE_instrs, ARRAY_COUNT(s_FE_instrs)},
+  {s_FF_instrs, ARRAY_COUNT(s_FF_instrs)},
+};
+
+_Static_assert(ARRAY_COUNT(s_instr_masks) == INSTR_MASK_COUNT, "Wrong masks");
+_Static_assert(ARRAY_COUNT(s_instr_tables) == INSTR_MASK_COUNT, "Wrong tables");
+
+struct instr decode_instr(u8 b) {
+  for (int i = 0; i < INSTR_MASK_COUNT; ++i) {
+    struct instrs_table table = s_instr_tables[i];
+    u8 mask = s_instr_masks[i];
+
+    // for now just brute force, build index later when tables grow
+    u8 instr = b & mask;
+    for (u64 i = 0; i < table.size; ++i) {
+      if (table.instrs[i].instr == instr) {
+        return table.instrs[i];
+      }
+    }
+  }
+  return (struct instr){0, "unsupported instruction", INSTR_FMT_NO_DATA};
+}
+
 // decode error check helper
 #define CHECK(op, err_msg)        \
     if (!(op)) {                  \
@@ -189,102 +279,118 @@ int decode(struct stream *s) {
   u8 *sbegin = s->data;
   u8 b0;
   while (stream_read_b(s, &b0)) {
-    if ((b0 & 0xFC) == 0x88) {
-      // mov reg/mem to/from reg
-      u8 b1;
-      CHECK(stream_read_b(s, &b1), "Error: mov requires a second byte\n");
+    struct instr instr = decode_instr(b0);
 
-      u8 d = decode_d(b0);
-      u8 w = decode_w(b0);
-      u8 mod = decode_mod(b1);
-      u8 reg = decode_reg(b1);
-      u8 rm  = decode_rm(b1);
-
-      if (mod == 3) {
-        // registers, no displacement follows
-        u8 src = d ? rm  : reg;
-        u8 dst = d ? reg : rm;
-        const char *dst_str = w ? str_reg_word(dst) : str_reg_byte(dst);
-        const char *src_str = w ? str_reg_word(src) : str_reg_byte(src);
-        printf("mov %s, %s\n", dst_str, src_str);
-      } else {
-        struct ea ea = effective_address(rm, mod);
-
-        i16 displ = 0;
-        if (ea.displ != DISPL_0) {
-          CHECK(stream_read_sign(s, &displ, ea.displ == DISPL_W),
-              "Error: mov no displacement\n");
-        }
-
-        if (!d) {
-          printf("mov ");
-          print_ea(ea, displ);
-          printf(", %s\n", w ? str_reg_word(reg) : str_reg_byte(reg));
-        } else {
-          printf("mov %s, ", w ? str_reg_word(reg) : str_reg_byte(reg));
-          print_ea(ea, displ);
-          printf("\n");
-        }
-      }
-    } else if ((b0 & 0xF0) == 0xB0) {
-      // mov imm to reg
-      u8 w = decode_bit(b0, 3);
-      u8 reg = decode_3bits(b0, 0);
-
-      u16 imm = 0;
-      CHECK(stream_read(s, &imm, w), "Error: mov no immediate\n");
-
-      const char *dst_str = w ? str_reg_word(reg) : str_reg_byte(reg);
-      printf("mov %s, %d\n", dst_str, imm);
-    } else if ((b0 & 0xFE) == 0xC6) {
-      // mov imm to reg/mem
-      u8 b1;
-      CHECK(stream_read_b(s, &b1), "Error: mov requires a second byte\n");
-
-      u8 w = decode_w(b0);
-      u8 mod = decode_mod(b1);
-      u8 rm  = decode_rm(b1);
-
-      if (mod == 3) {
-        // registers, no displacement follows
-        printf("mov %s,", w ? str_reg_word(rm) : str_reg_byte(rm));
-      } else {
-        struct ea ea = effective_address(rm, mod);
-
-        i16 displ = 0;
-        if (ea.displ != DISPL_0) {
-          CHECK(stream_read_sign(s, &displ, ea.displ == DISPL_W),
-              "Error: mov no displacement\n");
-        }
-
-        printf("mov ");
-        print_ea(ea, displ);
-        printf(", %s", w ? "word" : "byte");
-      }
-
-      u16 imm = 0;
-      CHECK(stream_read(s, &imm, w), "Error: mov no immediate\n");
-
-      printf(" %d\n", imm);
-    } else if ((b0 & 0xFC) == 0xA0) {
-      // mem to/from acc
-      u8 d = decode_d(b0);
-      u8 w = decode_w(b0);
-
-      u16 addr;
-      CHECK(stream_read_w(s, &addr), "Error: mov no address word\n");
-      const char *reg = w ? "ax" : "al";
-
-      if (d) {
-        printf("mov [%u], %s\n", addr, reg);
-      } else {
-        printf("mov %s, [%u]\n", reg, addr);
-      }
-    } else {
+    if (instr.instr == 0) {
       fprintf(stderr, "Error: unsupported instruction '0x%02X' at %ld\n",
           b0, s->data - sbegin);
       return 0;
     }
+
+    printf("%s ", instr.str);
+
+    switch(instr.fmt) {
+      case INSTR_FMT_NO_DATA:
+        break;
+      case INSTR_FMT_DISPL: {
+// {0x88, "mov",   INSTR_FMT_DISPL},       // 1000 10dw    - mov RM to/from REG
+        u8 b1;
+        CHECK(stream_read_b(s, &b1), "Error: mov requires a second byte\n");
+
+        u8 d = decode_d(b0);
+        u8 w = decode_w(b0);
+        u8 mod = decode_mod(b1);
+        u8 reg = decode_reg(b1);
+        u8 rm  = decode_rm(b1);
+
+        if (mod == 3) {
+          // registers, no displacement follows
+          u8 src = d ? rm  : reg;
+          u8 dst = d ? reg : rm;
+          const char *dst_str = w ? str_reg_word(dst) : str_reg_byte(dst);
+          const char *src_str = w ? str_reg_word(src) : str_reg_byte(src);
+          printf(" %s, %s\n", dst_str, src_str);
+        } else {
+          struct ea ea = effective_address(rm, mod);
+
+          i16 displ = 0;
+          if (ea.displ != DISPL_0) {
+            CHECK(stream_read_sign(s, &displ, ea.displ == DISPL_W),
+                "Error: mov no displacement\n");
+          }
+
+          if (!d) {
+            print_ea(ea, displ);
+            printf(", %s\n", w ? str_reg_word(reg) : str_reg_byte(reg));
+          } else {
+            printf(" %s, ", w ? str_reg_word(reg) : str_reg_byte(reg));
+            print_ea(ea, displ);
+            printf("\n");
+          }
+        }
+      } break;
+      case INSTR_FMT_DATA_W: {
+// {0xB0, "mov",   INSTR_FMT_DATA_W},      // 1011 wreg    - mov IMM to REG
+        u8 w = decode_bit(b0, 3);
+        u8 reg = decode_3bits(b0, 0);
+
+        u16 imm = 0;
+        CHECK(stream_read(s, &imm, w), "Error: mov no immediate\n");
+
+        const char *dst_str = w ? str_reg_word(reg) : str_reg_byte(reg);
+        printf(" %s, %d\n", dst_str, imm);
+      } break;
+      case INSTR_FMT_DISPL_DATA_W: {
+// {0xC6, "mov",   INSTR_FMT_DISPL_DATA_W},  // 1100 011w    - mov imm to R/M
+        u8 b1;
+        CHECK(stream_read_b(s, &b1), "Error: mov requires a second byte\n");
+
+        u8 w = decode_w(b0);
+        u8 mod = decode_mod(b1);
+        u8 rm  = decode_rm(b1);
+
+        if (mod == 3) {
+          // registers, no displacement follows
+          printf(" %s,", w ? str_reg_word(rm) : str_reg_byte(rm));
+        } else {
+          struct ea ea = effective_address(rm, mod);
+
+          i16 displ = 0;
+          if (ea.displ != DISPL_0) {
+            CHECK(stream_read_sign(s, &displ, ea.displ == DISPL_W),
+                "Error: mov no displacement\n");
+          }
+
+          print_ea(ea, displ);
+          printf(" , %s", w ? "word" : "byte");
+        }
+
+        u16 imm = 0;
+        CHECK(stream_read(s, &imm, w), "Error: mov no immediate\n");
+
+        printf(" %d\n", imm);
+      } break;
+      case INSTR_FMT_DATA_16: {
+// {0xA0, "mov",   INSTR_FMT_DISPL_DATA_W},  // 1010 00dw    - mov mem to/from ACC
+        // mem to/from acc
+        u8 d = decode_d(b0);
+        u8 w = decode_w(b0);
+
+        u16 addr;
+        CHECK(stream_read_w(s, &addr), "Error: mov no address word\n");
+        const char *reg = w ? "ax" : "al";
+
+        if (d) {
+          printf(" [%u], %s\n", addr, reg);
+        } else {
+          printf(" %s, [%u]\n", reg, addr);
+        }
+      } break;
+    }
+
+    // TODO extract arguments from above?
+
+
   }
   return 1;
 }
