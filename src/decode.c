@@ -31,6 +31,21 @@ typedef _Bool           bool;
     (b) = tmp;                \
   } while(0)
 
+enum reg {
+  REG_A = 0,
+  REG_C = 1,
+  REG_D = 2,
+  REG_B = 3,
+  REG_SP,
+  REG_BP,
+  REG_SI,
+  REG_DI,
+  REG_ES,
+  REG_CS,
+  REG_SS,
+  REG_DS,
+};
+
 const char s_reg_b_strs[][3] = {"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"};
 const char s_reg_w_strs[][3] = {"ax", "cx", "dx", "bx", "sp", "bp", "si", "di"};
 const char s_seg_strs[][3]   = {"es", "cs", "ss", "ds"};
@@ -233,14 +248,51 @@ enum displ_fmt {
   DISPL_FMT_RM,
 };
 
+enum instr_flag_type {
+  FLAG_NONE = 0,
+  FLAG_D,
+  FLAG_W,
+  FLAG_S,
+  FLAG_V,
+  FLAG_REG,
+  FLAG_SEG_REG,
+  FLAG_COUNT
+};
+
+struct instr_flag {
+  enum instr_flag_type type;
+  bool is_implicit;
+  union {
+    // is_implicit == 0
+    struct {
+      u8 pos;
+      u8 size_bits;
+    };
+    // is_implicit == 1
+    struct {
+      u8 value;
+      u8 is_always_wide;
+    };
+  };
+};
+
 struct instr_table_row {
+  u8 mask;
   const char *str;
   u8 opcode;              // masked first instr byte instruction should match opcode
-  u8 with_acc;
-  u8 d;                   // exchange operands
+  struct instr_flag flags[3];
   enum displ_fmt displ_fmt;
   enum instr_fmt fmt;
 };
+
+// struct instr_table_row {
+  // const char *str;
+  // u8 opcode;              // masked first instr byte instruction should match opcode
+  // u8 with_acc;
+  // u8 d;                   // exchange operands
+  // enum displ_fmt displ_fmt;
+  // enum instr_fmt fmt;
+// };
 
 // Instruction tables
 
@@ -251,171 +303,138 @@ const char s_alu1[]  = "<alu1>"; // mul, div, etc
 const char s_alu2[]  = "<alu2>"; // inc, dec, call, jmp
 const char s_shft[]  = "<shft>"; // shifts and rotations
 
-struct instr_table_row s_E7_instrs[] = {
-  {"push",  0x06, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 000s r110    - push SEG
-  {"pop",   0x07, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}  // 000s r111    - pop SEG
-};
+// Byte 0 flags
+#define F_SEG_REG     (struct instr_flag){FLAG_SEG_REG,  0, .pos = 3,     .size_bits = 2}
+#define F_REG         (struct instr_flag){FLAG_REG,      0, .pos = 0,     .size_bits = 3}
+#define F_W           (struct instr_flag){FLAG_W,        0, .pos = 0,     .size_bits = 1}
+#define F_W_ALT       (struct instr_flag){FLAG_W,        0, .pos = 3,     .size_bits = 1}
+#define F_D           (struct instr_flag){FLAG_D,        0, .pos = 1,     .size_bits = 1}
+#define F_S           (struct instr_flag){FLAG_S,        0, .pos = 1,     .size_bits = 1}
+#define F_V           (struct instr_flag){FLAG_V,        0, .pos = 1,     .size_bits = 1}
 
-struct instr_table_row s_F0_instrs[] = {
-  {"mov",   0xB0, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 1011 wreg    - mov IMM to REG
-};
+#define F_IMPL_REG_A  (struct instr_flag){FLAG_REG,      1, .value = REG_A, .is_always_wide = 0}
+#define F_IMPL_REG_D  (struct instr_flag){FLAG_REG,      1, .value = REG_D, .is_always_wide = 1}
+#define F_IMPL_D      (struct instr_flag){FLAG_D,        1, .value = 1}
 
-struct instr_table_row s_F8_instrs[] = {
-  {"push",  0x50, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 0101 0reg    - push REG
-  {"pop",   0x58, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 0101 1reg    - pop REG
-  {"inc",   0x40, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 0100 0reg    - inc REG
-  {"dec",   0x48, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 0100 1reg    - dec REG
-  {"xchg",  0x90, 1, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1001 0reg    - xchg ACC & REG
+const struct instr_table_row s_instr_rows[] = {
+  {0xE7, "push",  0x06, {F_SEG_REG},                        DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 000s r110    - push SEG
+  {0xE7, "pop",   0x07, {F_SEG_REG},                        DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 000s r111    - pop SEG
+
+  {0xF0, "mov",   0xB0, {F_W_ALT, F_REG},                   DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 1011 wreg    - mov IMM to REG
+
+  {0xF8, "push",  0x50, {F_REG},                            DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 0101 0reg    - push REG
+  {0xF8, "pop",   0x58, {F_REG},                            DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 0101 1reg    - pop REG
+  {0xF8, "inc",   0x40, {F_REG},                            DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 0100 0reg    - inc REG
+  {0xF8, "dec",   0x48, {F_REG},                            DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 0100 1reg    - dec REG
+  {0xF8, "xchg",  0x90, {F_REG, F_IMPL_REG_A},              DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1001 0reg    - xchg ACC & REG
   // TODO esc is not handled
   // {"esc",   0xD8, 0, 0, DISPL_FMT_REG_RM,   INSTR_FMT_NO_DATA}, // 1101 1xxx    - escape to ext device
+
+  {0xFC, "mov",   0x88, {F_D, F_W},                         DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 1000 10dw    - mov R/M to/f REG
+  {0xFC, "mov",   0xA0, {F_D, F_W, F_IMPL_REG_A},           DISPL_FMT_NONE,   INSTR_FMT_ADDR},    // 1010 00dw    - mov MEM to/f ACC
+  {0xFC, "add",   0x00, {F_D, F_W},                         DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 0000 00dw    - add R/M + REG
+  {0xFC, "or",    0x08, {F_D, F_W},                         DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 0000 10dw    - or  R/M & REG
+  {0xFC, "adc",   0x10, {F_D, F_W},                         DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 0001 00dw    - adc R/M + REG
+  {0xFC, "and",   0x20, {F_D, F_W},                         DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 0010 00dw    - and R/M & REG
+  {0xFC, "sub",   0x28, {F_D, F_W},                         DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 0010 10dw    - sub R/M + REG
+  {0xFC, "sbb",   0x18, {F_D, F_W},                         DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 0001 10dw    - sbb R/M + REG
+  {0xFC, "xor",   0x30, {F_D, F_W},                         DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 0011 00dw    - xor R/M ^ REG
+  {0xFC, "cmp",   0x38, {F_D, F_W},                         DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 0011 10dw    - cmp R/M + REG
+  {0xFC, s_alu0,  0x80, {F_S, F_W},                         DISPL_FMT_RM,     INSTR_FMT_DATASW},  // 1000 00sw    - (add|sub|..) R/M IMM
+  {0xFC, s_shft,  0xD0, {F_V, F_W},                         DISPL_FMT_RM,     INSTR_FMT_NO_DATA}, // 1101 00vw    - (shl|shr|..) R/M
+
+  {0xFE, "mov",   0xC6, {F_W},                              DISPL_FMT_RM,     INSTR_FMT_DATAW},   // 1100 011w    - mov IMM to R/M
+  {0xFE, "xchg",  0x86, {F_W, F_IMPL_D},                    DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 1000 011w    - xchg R/M w REG
+  {0xFE, "add",   0x04, {F_W, F_IMPL_REG_A},                DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 0000 010w    - add ACC + IMM
+  {0xFE, "or",    0x0C, {F_W, F_IMPL_REG_A},                DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 0000 110w    - or  ACC | IMM
+  {0xFE, "adc",   0x14, {F_W, F_IMPL_REG_A},                DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 1000 000w    - adc ACC + IMM
+  {0xFE, "sub",   0x2C, {F_W, F_IMPL_REG_A},                DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 0010 110w    - sub ACC - IMM
+  {0xFE, "and",   0x24, {F_W, F_IMPL_REG_A},                DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 0010 010w    - and ACC & IMM
+  {0xFE, "sbb",   0x1C, {F_W, F_IMPL_REG_A},                DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 0001 110w    - sbb ACC - IMM
+  {0xFE, s_alu2,  0xFE, {F_W},                              DISPL_FMT_RM,     INSTR_FMT_NO_DATA}, // 1111 111w    - (inc|dec|..) R/M
+  {0xFE, "xor",   0x34, {F_W, F_IMPL_REG_A},                DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 0011 010w    - xor ACC ^ IMM
+  {0xFE, "cmp",   0x3C, {F_W, F_IMPL_REG_A},                DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 0011 110w    - cmp ACC & IMM
+  {0xFE, "in",    0xE4, {F_W, F_IMPL_REG_A},                DISPL_FMT_NONE,   INSTR_FMT_DATA8},   // 1110 010w    - in  ACC IMM8
+  {0xFE, "out",   0xE6, {F_W, F_IMPL_REG_A, F_IMPL_D},      DISPL_FMT_NONE,   INSTR_FMT_DATA8},   // 1110 011w    - out ACC IMM8
+  {0xFE, s_alu1,  0xF6, {F_W},                              DISPL_FMT_RM,     INSTR_FMT_NO_DATA}, // 1111 011w    - (mul|div|..) R/M
+  {0xFE, "test",  0x84, {F_W},                              DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 1000 010w    - test R/M & REG
+  {0xFE, "test",  0xA8, {F_W, F_IMPL_REG_A},                DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 1010 100w    - test ACC & IMM
+  {0xFE, "in",    0xEC, {F_W, F_IMPL_REG_A, F_IMPL_REG_D},  DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1110 110w    - in  ACC dx
+  {0xFE, "out",   0xEE, {F_W, F_IMPL_REG_D, F_IMPL_REG_A},  DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1110 111w    - out ACC dx
+
+  {0xFF, "mov",   0x8C, {0},                                DISPL_FMT_SR_RM,  INSTR_FMT_NO_DATA}, // 1000 1100    - mov SEG to R/M
+  {0xFF, "mov",   0x8E, {0},                                DISPL_FMT_SR_RM,  INSTR_FMT_NO_DATA}, // 1000 1110    - mov R/M to SEG
+  {0xFF, "pop",   0x8F, {0},                                DISPL_FMT_RM,     INSTR_FMT_NO_DATA}, // 1000 1111    - pop R/M
+  {0xFF, s_alu2,  0xFF, {0},                                DISPL_FMT_RM,     INSTR_FMT_NO_DATA}, // 1111 1111    - (inc|dec|..) R/M
+  {0xFF, "je",    0x74, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 0100    - je /jz   IP-INC8
+  {0xFF, "jl",    0x7C, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1100    - jl /jnge IP-INC8
+  {0xFF, "jle",   0x7E, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1110    - jle/jng  IP-INC8
+  {0xFF, "jb",    0x72, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 0010    - jb /jnae IP-INC8
+  {0xFF, "jbe",   0x76, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 0110    - jbe/jna  IP-INC8
+  {0xFF, "jp",    0x7A, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1010    - jp /jpe  IP-INC8
+  {0xFF, "jo",    0x70, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 0000    - jo       IP-INC8
+  {0xFF, "js",    0x78, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1000    - js       IP-INC8
+  {0xFF, "jne",   0x75, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 0101    - jne/jnz  IP-INC8
+  {0xFF, "jnl",   0x7D, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1101    - jnl/jge  IP-INC8
+  {0xFF, "jg",    0x7F, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1111    - jg /jnle IP-INC8
+  {0xFF, "jnb",   0x73, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 0011    - jnb/jae  IP-INC8
+  {0xFF, "jnbe",  0x77, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 0111    - jnb/jae  IP-INC8
+  {0xFF, "jnp",   0x7B, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1011    - jnp/jpo  IP-INC8
+  {0xFF, "jno",   0x71, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 0001    - jno      IP-INC8
+  {0xFF, "jns",   0x79, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1001    - jno      IP-INC8
+  {0xFF, "jcxz",  0xE3, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 1110 0011    - jsxz     IP-INC8
+  {0xFF, "loop",  0xE2, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 1110 0010    - loop CX times
+  {0xFF, "loopz", 0xE1, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 1110 0001    - loopz/loope
+  {0xFF, "loopnz",0xE0, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 1110 0000    - loopnz/loopne
+  {0xFF, "jmp",   0xEB, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 1110 1001    - jmp in SEG short
+  {0xFF, "call",  0xE8, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC16},// 1110 1000    - call direct in SEG
+  {0xFF, "jmp",   0xE9, {0},                                DISPL_FMT_NONE,   INSTR_FMT_IP_INC16},// 1110 1001    - jmp direct in SEG
+  {0xFF, "ret",   0xC2, {0},                                DISPL_FMT_NONE,   INSTR_FMT_DATA16},  // 1100 0010    - ret SP + IMM16 in SEG
+  {0xFF, "ret",   0xCA, {0},                                DISPL_FMT_NONE,   INSTR_FMT_DATA16},  // 1100 1010    - ret SP + IMM16 inter SEG
+  {0xFF, "ret",   0xC3, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1100 0011    - ret in SEG
+  {0xFF, "ret",   0xCB, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1100 1011    - ret inter SEG
+  {0xFF, "xlat",  0xD7, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1101 0111    - byte to AL
+  {0xFF, "lea",   0x8D, {F_IMPL_D},                         DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 1000 1101    - lea R/M to REG
+  {0xFF, "lds",   0xC5, {F_IMPL_D},                         DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 1100 0101    - load ptr to DS
+  {0xFF, "les",   0xC4, {F_IMPL_D},                         DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 1100 0100    - load ptr to ES
+  {0xFF, "lahf",  0x9F, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1001 1111    - load FLAGS to AH
+  {0xFF, "sahf",  0x9E, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1001 1110    - store AH to FLAGS
+  {0xFF, "call",  0x9A, {0},                                DISPL_FMT_NONE,   INSTR_FMT_SEG_ADDR},// 1001 1010    - call direct intra SEG
+  {0xFF, "jmp",   0xEA, {0},                                DISPL_FMT_NONE,   INSTR_FMT_SEG_ADDR},// 1110 1010    - jmp direct intra SEG
+  {0xFF, "pushf", 0x9C, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1001 1110    - push FLAGS
+  {0xFF, "popf",  0x9D, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1001 1110    - pop FLAGS
+  {0xFF, "aaa",   0x37, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 0011 0111    - ASCII adjust for add
+  {0xFF, "daa",   0x27, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 0010 0111    - Dec adjust for add
+  {0xFF, "aas",   0x3F, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 0011 1111    - ASCII adjust for sub
+  {0xFF, "das",   0x2F, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 0010 1111    - Dec adjust for sub
+  {0xFF, "aam",   0xD4, {0},                                DISPL_FMT_NONE,   INSTR_FMT_SWALLOW8},// 1101 0100    - ASCII adjust for mul
+  {0xFF, "aad",   0xD5, {0},                                DISPL_FMT_NONE,   INSTR_FMT_SWALLOW8},// 1101 0101    - ASCII adjust for div
+  {0xFF, "cbw",   0x98, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1001 0100    - byte -> word
+  {0xFF, "cwd",   0x99, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1001 0101    - word -> dword
+  {0xFF, "movsb", 0xA4, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 0100    - movs byte SI,DI
+  {0xFF, "movsw", 0xA5, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 0101    - movs word SI,DI
+  {0xFF, "cmpsb", 0xA6, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 0100    - cmps byte SI,DI
+  {0xFF, "cmpsw", 0xA7, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 0101    - cmps word SI,DI
+  {0xFF, "scasb", 0xAE, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 1110    - scas byte SI,DI
+  {0xFF, "scasw", 0xAF, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 1111    - scas word SI,DI
+  {0xFF, "lodsb", 0xAC, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 1100    - lods byte SI,DI
+  {0xFF, "lodsw", 0xAD, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 1101    - lods word SI,DI
+  {0xFF, "stosb", 0xAA, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 1010    - stos byte SI,DI
+  {0xFF, "stosw", 0xAB, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 1011    - stos word SI,DI
+  {0xFF, "int3",  0xCC, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1100 1100    - int3
+  {0xFF, "int",   0xCD, {0},                                DISPL_FMT_NONE,   INSTR_FMT_DATA8},   // 1100 1101    - int IMM8
+  {0xFF, "into",  0xCE, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1100 1110    - int on overflow
+  {0xFF, "iret",  0xCF, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1100 1111    - return from int
+  {0xFF, "cmc",   0xF5, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1111 0101    - complement carry
+  {0xFF, "clc",   0xF8, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1111 1000    - clear carry
+  {0xFF, "stc",   0xF9, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1111 0101    - set carry
+  {0xFF, "cld",   0xFC, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1111 1100    - clear direction
+  {0xFF, "std",   0xFD, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1111 1101    - set direction
+  {0xFF, "cli",   0xFA, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1111 1010    - clear interrupt
+  {0xFF, "sti",   0xFB, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1111 1011    - set interrupt
+  {0xFF, "hlt",   0xF4, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1111 0100    - halt (wait for ext int)
+  {0xFF, "wait",  0x9B, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1001 1011    - wait
 };
-
-struct instr_table_row s_FC_instrs[] = {
-  {"mov",   0x88, 0, 0, DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 1000 10dw    - mov R/M to/f REG
-  {"mov",   0xA0, 1, 0, DISPL_FMT_NONE,   INSTR_FMT_ADDR},    // 1010 00dw    - mov MEM to/f ACC
-  {"add",   0x00, 0, 0, DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 0000 00dw    - add R/M + REG
-  {"or",    0x08, 0, 0, DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 0000 10dw    - or  R/M & REG
-  {"adc",   0x10, 0, 0, DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 0001 00dw    - adc R/M + REG
-  {"and",   0x20, 0, 0, DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 0010 00dw    - and R/M & REG
-  {"sub",   0x28, 0, 0, DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 0010 10dw    - sub R/M + REG
-  {"sbb",   0x18, 0, 0, DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 0001 10dw    - sbb R/M + REG
-  {"xor",   0x30, 0, 0, DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 0011 00dw    - xor R/M ^ REG
-  {"cmp",   0x38, 0, 0, DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 0011 10dw    - cmp R/M + REG
-  {s_alu0,  0x80, 0, 0, DISPL_FMT_RM,     INSTR_FMT_DATASW},  // 1000 00sw    - (add|sub|..) R/M IMM
-  {s_shft,  0xD0, 0, 0, DISPL_FMT_RM,     INSTR_FMT_NO_DATA}, // 1101 00vw    - (shl|shr|..) R/M
-};
-
-struct instr_table_row s_FE_instrs[] = {
-  {"mov",   0xC6, 0, 0, DISPL_FMT_RM,     INSTR_FMT_DATAW},   // 1100 011w    - mov IMM to R/M
-  {"xchg",  0x86, 0, 1, DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 1000 011w    - xchg R/M w REG
-  {"add",   0x04, 1, 0, DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 0000 010w    - add ACC + IMM
-  {"or",    0x0C, 1, 0, DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 0000 110w    - or  ACC | IMM
-  {"adc",   0x14, 1, 0, DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 1000 000w    - adc ACC + IMM
-  {"sub",   0x2C, 1, 0, DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 0010 110w    - sub ACC - IMM
-  {"and",   0x24, 1, 0, DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 0010 010w    - and ACC & IMM
-  {"sbb",   0x1C, 1, 0, DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 0001 110w    - sbb ACC - IMM
-  {s_alu2,  0xFE, 0, 0, DISPL_FMT_RM,     INSTR_FMT_NO_DATA}, // 1111 111w    - (inc|dec|..) R/M
-  {"xor",   0x34, 1, 0, DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 0011 010w    - xor ACC ^ IMM
-  {"cmp",   0x3C, 1, 0, DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 0011 110w    - cmp ACC & IMM
-  {"in",    0xE4, 1, 0, DISPL_FMT_NONE,   INSTR_FMT_DATA8},   // 1110 010w    - in  ACC IMM8
-  {"out",   0xE6, 1, 1, DISPL_FMT_NONE,   INSTR_FMT_DATA8},   // 1110 011w    - out ACC IMM8
-  {s_alu1,  0xF6, 0, 0, DISPL_FMT_RM,     INSTR_FMT_NO_DATA}, // 1111 011w    - (mul|div|..) R/M
-  {"test",  0x84, 0, 0, DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 1000 010w    - test R/M & REG
-  {"test",  0xA8, 1, 0, DISPL_FMT_NONE,   INSTR_FMT_DATAW},   // 1010 100w    - test ACC & IMM
-};
-
-// instructions with implicit dx register
-struct instr_table_row s_FE_io_instrs[] = {
-  {"in",    0xEC, 1, 1, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1110 110w    - in  ACC dx
-  {"out",   0xEE, 1, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1110 111w    - out ACC dx
-};
-
-struct instr_table_row s_FF_instrs[] = {
-  {"mov",   0x8C, 0, 0, DISPL_FMT_SR_RM,  INSTR_FMT_NO_DATA}, // 1000 1100    - mov SEG to R/M
-  {"mov",   0x8E, 0, 0, DISPL_FMT_SR_RM,  INSTR_FMT_NO_DATA}, // 1000 1110    - mov R/M to SEG
-  {"pop",   0x8F, 0, 0, DISPL_FMT_RM,     INSTR_FMT_NO_DATA}, // 1000 1111    - pop R/M
-  {s_alu2,  0xFF, 0, 0, DISPL_FMT_RM,     INSTR_FMT_NO_DATA}, // 1111 1111    - push R/M
-  {"je",    0x74, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 0100    - je /jz   IP-INC8
-  {"jl",    0x7C, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1100    - jl /jnge IP-INC8
-  {"jle",   0x7E, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1110    - jle/jng  IP-INC8
-  {"jb",    0x72, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 0010    - jb /jnae IP-INC8
-  {"jbe",   0x76, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 0110    - jbe/jna  IP-INC8
-  {"jp",    0x7A, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1010    - jp /jpe  IP-INC8
-  {"jo",    0x70, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 0000    - jo       IP-INC8
-  {"js",    0x78, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1000    - js       IP-INC8
-  {"jne",   0x75, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 0101    - jne/jnz  IP-INC8
-  {"jnl",   0x7D, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1101    - jnl/jge  IP-INC8
-  {"jg",    0x7F, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1111    - jg /jnle IP-INC8
-  {"jnb",   0x73, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 0011    - jnb/jae  IP-INC8
-  {"jnbe",  0x77, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 0111    - jnb/jae  IP-INC8
-  {"jnp",   0x7B, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1011    - jnp/jpo  IP-INC8
-  {"jno",   0x71, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 0001    - jno      IP-INC8
-  {"jns",   0x79, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1001    - jno      IP-INC8
-  {"jcxz",  0xE3, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 1110 0011    - jsxz     IP-INC8
-  {"loop",  0xE2, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 1110 0010    - loop CX times
-  {"loopz", 0xE1, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 1110 0001    - loopz/loope
-  {"loopnz",0xE0, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 1110 0000    - loopnz/loopne
-  {"jmp",   0xEB, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 1110 1001    - jmp in SEG short
-  {"call",  0xE8, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC16},// 1110 1000    - call direct in SEG
-  {"jmp",   0xE9, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_IP_INC16},// 1110 1001    - jmp direct in SEG
-  {"ret",   0xC2, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_DATA16},  // 1100 0010    - ret SP + IMM16 in SEG
-  {"ret",   0xCA, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_DATA16},  // 1100 1010    - ret SP + IMM16 inter SEG
-  {"ret",   0xC3, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1100 0011    - ret in SEG
-  {"ret",   0xCB, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1100 1011    - ret inter SEG
-  {"xlat",  0xD7, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1101 0111    - byte to AL
-  {"lea",   0x8D, 0, 1, DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 1000 1101    - lea R/M to REG
-  {"lds",   0xC5, 0, 1, DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 1100 0101    - load ptr to DS
-  {"les",   0xC4, 0, 1, DISPL_FMT_REG_RM, INSTR_FMT_NO_DATA}, // 1100 0100    - load ptr to ES
-  {"lahf",  0x9F, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1001 1111    - load FLAGS to AH
-  {"sahf",  0x9E, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1001 1110    - store AH to FLAGS
-  {"call",  0x9A, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_SEG_ADDR},// 1001 1010    - call direct intra SEG
-  {"jmp",   0xEA, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_SEG_ADDR},// 1110 1010    - jmp direct intra SEG
-  {"pushf", 0x9C, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1001 1110    - push FLAGS
-  {"popf",  0x9D, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1001 1110    - pop FLAGS
-  {"aaa",   0x37, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 0011 0111    - ASCII adjust for add
-  {"daa",   0x27, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 0010 0111    - Dec adjust for add
-  {"aas",   0x3F, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 0011 1111    - ASCII adjust for sub
-  {"das",   0x2F, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 0010 1111    - Dec adjust for sub
-  {"aam",   0xD4, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_SWALLOW8},// 1101 0100    - ASCII adjust for mul
-  {"aad",   0xD5, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_SWALLOW8},// 1101 0101    - ASCII adjust for div
-  {"cbw",   0x98, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1001 0100    - byte -> word
-  {"cwd",   0x99, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1001 0101    - word -> dword
-  {"movsb", 0xA4, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 0100    - movs byte SI,DI
-  {"movsw", 0xA5, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 0101    - movs word SI,DI
-  {"cmpsb", 0xA6, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 0100    - cmps byte SI,DI
-  {"cmpsw", 0xA7, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 0101    - cmps word SI,DI
-  {"scasb", 0xAE, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 1110    - scas byte SI,DI
-  {"scasw", 0xAF, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 1111    - scas word SI,DI
-  {"lodsb", 0xAC, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 1100    - lods byte SI,DI
-  {"lodsw", 0xAD, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 1101    - lods word SI,DI
-  {"stosb", 0xAA, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 1010    - stos byte SI,DI
-  {"stosw", 0xAB, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1010 1011    - stos word SI,DI
-  {"int3",  0xCC, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1100 1100    - int3
-  {"int",   0xCD, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_DATA8},   // 1100 1101    - int IMM8
-  {"into",  0xCE, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1100 1110    - int on overflow
-  {"iret",  0xCF, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1100 1111    - return from int
-  {"cmc",   0xF5, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1111 0101    - complement carry
-  {"clc",   0xF8, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1111 1000    - clear carry
-  {"stc",   0xF9, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1111 0101    - set carry
-  {"cld",   0xFC, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1111 1100    - clear direction
-  {"std",   0xFD, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1111 1101    - set direction
-  {"cli",   0xFA, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1111 1010    - clear interrupt
-  {"sti",   0xFB, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1111 1011    - set interrupt
-  {"hlt",   0xF4, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1111 0100    - halt (wait for ext int)
-  {"wait",  0x9B, 0, 0, DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1001 1011    - wait
-};
-
-// Instruction mask determines location of flags (d, w, etc) in the first byte
-enum instr_mask {
-  INSTR_MASK_E7,    // 111X X111
-  INSTR_MASK_F0,    // 1111 XXXX
-  INSTR_MASK_F8,    // 1111 1XXX
-  INSTR_MASK_FC,    // 1111 11XX
-  INSTR_MASK_FE,    // 1111 111X
-  INSTR_MASK_FE_IO, // 1111 111X - same mask but different logic
-  INSTR_MASK_FF,    // 1111 1111
-  INSTR_MASK_COUNT
-};
-
-u8 s_instr_masks[] = {0xE7, 0xF0, 0xF8, 0xFC, 0xFE, 0xFE, 0xFF};
-
-struct instrs_table {
-  struct instr_table_row *rows;
-  u64 size;
-};
-
-struct instrs_table s_instr_tables[] = {
-  {s_E7_instrs,     ARRAY_COUNT(s_E7_instrs)},
-  {s_F0_instrs,     ARRAY_COUNT(s_F0_instrs)},
-  {s_F8_instrs,     ARRAY_COUNT(s_F8_instrs)},
-  {s_FC_instrs,     ARRAY_COUNT(s_FC_instrs)},
-  {s_FE_instrs,     ARRAY_COUNT(s_FE_instrs)},
-  {s_FE_io_instrs,  ARRAY_COUNT(s_FE_io_instrs)},
-  {s_FF_instrs,     ARRAY_COUNT(s_FF_instrs)},
-};
-
-_Static_assert(ARRAY_COUNT(s_instr_masks) == INSTR_MASK_COUNT, "Bad masks");
-_Static_assert(ARRAY_COUNT(s_instr_tables) == INSTR_MASK_COUNT, "Bad tables");
 
 // Operands
 enum operand_type {OP_NONE, OP_REG, OP_EA, OP_DATA, OP_IP_INC};
@@ -451,6 +470,25 @@ struct instr {
   u16 cs_addr;          // set cs to this new value
   bool w;
 };
+
+const struct instr_table_row *s_b0_to_row[256] = {0};
+
+// build index table for the first byte (b0)
+void build_index() {
+  u8 b0 = 0;
+  do {
+    const struct instr_table_row *found_row = NULL;
+
+    for (u64 i = 0; i < ARRAY_COUNT(s_instr_rows); ++i) {
+      const struct instr_table_row *row = &s_instr_rows[i];
+      if (row->opcode == (b0 & row->mask)) {
+        found_row = row;
+        break;
+      }
+    }
+    s_b0_to_row[b0] = found_row;
+  } while (++b0 != 0);
+}
 
 FORCE_INLINE enum prefix_type decode_prefix(u8 b, struct prefixes *out) {
   enum prefix_type type = PREFIX_NONE;
@@ -501,6 +539,9 @@ FORCE_INLINE enum prefix_type decode_prefix(u8 b, struct prefixes *out) {
 //
 // instruction is ready
 struct instr decode_next_instr(struct stream *stream) {
+  // FLAG_NONE = 0, FLAG_D = 1, FLAG_W = 2, FLAG_S = 3, FLAG_V = 4,
+  int flags[5] = {-1 ,-1, -1, -1, -1};
+
   struct instr ret = {0};
   u8 b0;
 
@@ -512,100 +553,49 @@ struct instr decode_next_instr(struct stream *stream) {
   } while (prefix_type != PREFIX_NONE);
 
   // decode instruction byte 0
-  const struct instr_table_row *row = NULL;
-  enum instr_mask instr_mask_type = 0;
-
-  // for now just brute force, build index later when tables grow
-  for (int i = 0; i < INSTR_MASK_COUNT; ++i) {
-    struct instrs_table table = s_instr_tables[i];
-    u8 mask = s_instr_masks[i];
-
-    u8 opcode = b0 & mask;
-    for (u64 j = 0; j < table.size; ++j) {
-      if (table.rows[j].opcode == opcode) {
-        row = &table.rows[j];
-        instr_mask_type = i;
-        goto instr_found; // break out of outer loop
-      }
-    }
-  }
+  const struct instr_table_row *row = s_b0_to_row[b0];
   if (!row) {
     return ret;
   }
-instr_found:
-  // decode remaing bytes
-  ret.str = row->str;
 
-  // byte0 flags
-  u8 w = 1;
-  // s & d share the same position in byte0
-  u8 d = row->d;  // d - instruction has displacement w/o data
-  u8 s = 0;       // s - instruction has displacement with immediate
-  u8 v = 0;       // v = 1, rotate count in CL register
-
+  // decode first byte flags
+  flags[FLAG_W] = 1;
   u8 ops_size = 0;
 
-  switch (instr_mask_type) {
-    // XXXs rXXX  - sr 2-bit segment register
-    case INSTR_MASK_E7:
+  for (u64 i = 0; i < ARRAY_COUNT(row->flags); ++i) {
+    struct instr_flag flag = row->flags[i];
+    if (flag.type == FLAG_NONE) {
+      break;
+    }
+
+    u8 f = flag.is_implicit
+      ? flag.value
+      : (b0 & (0xFF >> (8 - flag.size_bits)) << flag.pos) >> flag.pos;
+
+    if (flag.type == FLAG_REG) {
+      bool is_wide = flags[FLAG_W] || (flag.is_implicit && flag.is_always_wide);
       ret.ops[ops_size++] = (struct operand){
-        .reg = str_seg_reg((b0 & 0x18) >> 3),
+        .reg = is_wide ? str_reg_word(f) : str_reg_byte(f),
         .type = OP_REG
       };
-      break;
-
-    // 1011 wreg
-    case INSTR_MASK_F0:
-      w = (b0 & 8) >> 3;
-      // fallthrough
-
-    // XXXX Xreg
-    case INSTR_MASK_F8: {
-      u8 reg = b0 & 0x07;
+    } else if (flag.type == FLAG_SEG_REG) {
       ret.ops[ops_size++] = (struct operand){
-        .reg = w ? str_reg_word(reg) : str_reg_byte(reg),
+        .reg = str_seg_reg(f),
         .type = OP_REG
       };
-    } break;
-
-    // XXXX XXdw
-    case INSTR_MASK_FC:
-      w = b0 & 0x01;
-      if (row->fmt == INSTR_FMT_DATASW) {
-        s = (b0 & 0x02) >> 1;
-      }
-      if (row->displ_fmt == DISPL_FMT_REG_RM || row->fmt == INSTR_FMT_ADDR) {
-        d = (b0 & 0x02) >> 1;
-      }
-      v = (b0 & 0x02) >> 1;
-      break;
-
-    // XXXX XXXw - io instructions with implicit dx
-    case INSTR_MASK_FE_IO:
-      ret.ops[ops_size++] = (struct operand){.reg = "dx", .type = OP_REG};
-      // fallthrough
-
-    // XXXX XXXw
-    case INSTR_MASK_FE:
-      w = b0 & 0x01;
-      break;
-
-    // XXXX XXXX
-    case INSTR_MASK_FF:
-      break;
-
-    case INSTR_MASK_COUNT:
-      break;
+    } else {
+      flags[flag.type] = f;
+    }
   }
 
+  // byte0 flags
+  u8 w = flags[FLAG_W] > 0;
+  u8 d = flags[FLAG_D] > 0; // d - instruction has displacement w/o data
+  u8 s = flags[FLAG_S] > 0; // s - instruction has displacement with immediate
+  u8 v = flags[FLAG_V] > 0; // v = 1, rotate count in CL register
+
+  ret.str = row->str;
   ret.w = w;
-
-  if (row->with_acc) {
-    ret.ops[ops_size++] = (struct operand){
-      .reg = w ? "ax" : "al",
-      .type = OP_REG
-    };
-  }
 
   u8 opcode_aux; // part of opcode in Byte 1
 
@@ -671,8 +661,12 @@ instr_found:
     ret.str = str_opcode_alu2(opcode_aux);
   } else if (ret.str == s_shft) {
     ret.str = str_opcode_shft(opcode_aux);
-    ret.ops[ops_size++] = v ? (struct operand){.reg = "cl", .type = OP_REG}
-                            : (struct operand){.data = 1, .type = OP_DATA};
+  }
+
+  if (flags[FLAG_V] >= 0) {
+    ret.ops[ops_size++] = v
+      ? (struct operand){.reg = "cl", .type = OP_REG}
+      : (struct operand){.data = 1, .type = OP_DATA};
   }
 
   // read data
@@ -847,6 +841,8 @@ void print_instr(const struct instr *instr) {
 }
 
 int decode(struct stream *s) {
+  build_index();
+
   u8 *sbegin = s->data;
 
   while (s->data < s->end) {
