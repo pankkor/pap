@@ -237,7 +237,7 @@ idiv word [bx + 493]
 aad
 cbw
 cwd
-
+    
 not ah
 not bl
 not sp
@@ -348,11 +348,11 @@ jmp ax
 jmp di
 jmp [12]
 jmp [4395]
-
+    
 ret -7
 ret 500
 ret
-
+    
 label:
 je label
 jl label
@@ -374,10 +374,10 @@ loop label
 loopz label
 loopnz label
 jcxz label
-
+    
 int 13
 int3
-
+    
 into
 iret
 
@@ -410,11 +410,29 @@ lock not byte CS:[bp + 9905]
 
 ;
 ; NOTE(casey): These were not in the original homework set, but have been added since, as people
-; found instruction encodings that were not previously covered
+; found instruction encodings that were not previously covered. Thank you to everyone who
+; submitted test cases!
 ;
 
 call 123:456
 jmp 789:34
+
+mov [bx+si+59],es
+
+jmp 2620
+call 11804
+
+retf 17556
+ret 17560
+retf
+ret
+
+call [bp+si-0x3a]
+call far [bp+si-0x3a]
+jmp [di]
+jmp far [di]
+
+jmp 21862:30600
 
 ;
 ; TODO(casey): I would like to uncomment this, but as far as I can tell, NASM doesn't recognize the ESC instruction :(
