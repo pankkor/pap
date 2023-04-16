@@ -2,103 +2,17 @@
 // https://www.computerenhance.com/p/table-of-contents
 //
 // Part 1
-// 8086 instructions decode
+// 8086 simple simulator
 //
 // Run 'test_decode.sh' that tests decoding on all the listings in listings dir
 
+#include "sim86_types.h"
+#include "sim86_instr.h"
+#include "sim86_stream.h"
+
 #include <assert.h>     // assert
-#include <unistd.h>     // lseek
-#include <fcntl.h>      // open
-#include <sys/types.h>  // legacy
-#include <sys/mman.h>   // mmap munmap
-#include <stdio.h>      // printf
-
-typedef signed char     i8;
-typedef unsigned char   u8;
-typedef short           i16;
-typedef unsigned short  u16;
-typedef unsigned long   u64;
-typedef _Bool           bool;
-#define true            1
-#define false           0
-
-#define FORCE_INLINE    inline __attribute__((always_inline))
-#define ARRAY_COUNT(x)  (u64)(sizeof(x) / sizeof(x[0]))
-#define SWAP(a, b)            \
-  do {                        \
-    __typeof__(a) tmp = (a);  \
-    (a) = (b);                \
-    (b) = tmp;                \
-  } while(0)
-
-enum reg_type {
-  REG_A,
-  REG_C,
-  REG_D,
-  REG_B,
-  REG_SP,
-  REG_BP,
-  REG_SI,
-  REG_DI,
-  REG_ES,
-  REG_CS,
-  REG_SS,
-  REG_DS,
-};
-
-enum reg_mode {
-  REG_MODE_L,
-  REG_MODE_H,
-  REG_MODE_X,
-  REG_MODE_COUNT
-};
-
-struct reg {
-  enum reg_type type;
-  enum reg_mode mode;
-};
-
-const struct reg s_regs[][REG_MODE_COUNT] = {
-  {{REG_A,  REG_MODE_L}, {REG_A,  REG_MODE_H}, {REG_A,  REG_MODE_X}},
-  {{REG_C,  REG_MODE_L}, {REG_C,  REG_MODE_H}, {REG_C,  REG_MODE_X}},
-  {{REG_D,  REG_MODE_L}, {REG_D,  REG_MODE_H}, {REG_D,  REG_MODE_X}},
-  {{REG_B,  REG_MODE_L}, {REG_B,  REG_MODE_H}, {REG_B,  REG_MODE_X}},
-  {{REG_SP, REG_MODE_X}, {REG_SP, REG_MODE_X}, {REG_SP, REG_MODE_X}},
-  {{REG_BP, REG_MODE_X}, {REG_BP, REG_MODE_X}, {REG_BP, REG_MODE_X}},
-  {{REG_SI, REG_MODE_X}, {REG_SI, REG_MODE_X}, {REG_SI, REG_MODE_X}},
-  {{REG_DI, REG_MODE_X}, {REG_DI, REG_MODE_X}, {REG_DI, REG_MODE_X}},
-  {{REG_ES, REG_MODE_X}, {REG_ES, REG_MODE_X}, {REG_ES, REG_MODE_X}},
-  {{REG_CS, REG_MODE_X}, {REG_CS, REG_MODE_X}, {REG_CS, REG_MODE_X}},
-  {{REG_SS, REG_MODE_X}, {REG_SS, REG_MODE_X}, {REG_SS, REG_MODE_X}},
-  {{REG_DS, REG_MODE_X}, {REG_DS, REG_MODE_X}, {REG_DS, REG_MODE_X}},
-};
-
-const char s_reg_strs[][REG_MODE_COUNT][3] = {
-  {"al", "ah", "ax"},
-  {"cl", "ch", "cx"},
-  {"dl", "dh", "dx"},
-  {"bl", "bh", "bx"},
-  {"sp", "sp", "sp"},
-  {"bp", "bp", "bp"},
-  {"si", "si", "si"},
-  {"di", "di", "di"},
-  {"es", "es", "es"},
-  {"cs", "cs", "cs"},
-  {"ss", "ss", "ss"},
-  {"ds", "ds", "ds"},
-};
-
-_Static_assert(ARRAY_COUNT(s_regs) == ARRAY_COUNT(s_reg_strs),
-    "size mismatch");
-
-FORCE_INLINE const struct reg *reg_ptr(enum reg_type reg_type,
-    enum reg_mode desired_mode) {
-  return &s_regs[reg_type][desired_mode & 0x3];
-}
-
-FORCE_INLINE const char *str_reg(struct reg reg) {
-  return s_reg_strs[reg.type][reg.mode];
-}
+#include <stddef.h>     // NULL
+#include <stdio.h>      // fprintf, stderr
 
 const struct reg s_map_regs[][2] = {
   {{REG_A,   REG_MODE_L}, {REG_A,   REG_MODE_X}},
@@ -126,47 +40,6 @@ FORCE_INLINE struct reg seg_reg_from_bits(u8 bits) {
   return s_map_seg_regs[bits & 0x3];
 }
 
-// data stream
-struct stream {
-  u8 * restrict data;
-  u8 * restrict end;
-};
-
-FORCE_INLINE bool stream_read_b(struct stream *s, u8 * restrict out_byte) {
-  if (s->data < s->end) {
-    *out_byte = *s->data++;
-    return true;
-  }
-  return false;
-}
-
-FORCE_INLINE bool stream_read_w(struct stream *s, u16 * restrict out_word) {
-  if (s->data + 1 < s->end) {
-    *out_word = *((u16 *)s->data);
-    s->data += 2;
-    return true;
-  }
-  return false;
-}
-
-FORCE_INLINE bool stream_read(struct stream *s, u16 * restrict out_word,
-    bool is_word) {
-  return is_word ? stream_read_w(s, out_word) : stream_read_b(s, (u8 *)out_word);
-}
-
-// read byte is sign extended
-FORCE_INLINE bool stream_read_sign(struct stream *s, i16 * restrict out_word,
-    bool is_word) {
-  if (is_word) {
-    return stream_read_w(s, (u16 *)out_word);
-  } else {
-    i8 lo;
-    bool res = stream_read_b(s, (u8 *)&lo);
-    *out_word = lo; // sign extend
-    return res;
-  }
-}
-
 // Generic 8086 instruction encoding: 1-6 bytes
 //
 // |    Byte 0     | |    Byte 1     |
@@ -176,24 +49,6 @@ FORCE_INLINE bool stream_read_sign(struct stream *s, i16 * restrict out_word,
 // Byte 2-5 encode optionasl displacement or immediate.
 // Special case instructions might miss some flags and have them at different
 // positions.
-
-// Effective address calculation
-struct compute_addr {
-  const struct reg *base_reg;
-  const struct reg *index_reg;
-  i16 displ;
-};
-
-enum ea_type {EA_COMPUTE, EA_DIRECT};
-struct ea {
-  const struct reg *seg;
-  enum ea_type type;
-
-  union {
-    struct compute_addr compute_addr;
-    u16 direct_addr;
-  };
-};
 
 bool decode_effective_address(struct stream *s, u8 rm, u8 mod,
     struct ea *out) {
@@ -481,47 +336,9 @@ const struct instr_table_row s_instr_rows[] = {
   {"wait",  0xFF,  0x9B, -1, {0},                                DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 1001 1011    - wait
 };
 
-// Operands
-enum operand_type {OP_NONE, OP_REG, OP_EA, OP_DATA, OP_IP_INC};
+static const struct instr_table_row *s_b0_to_row[256] = {0};
 
-struct operand {
-  union {
-    struct reg  reg;
-    struct ea   ea;
-    u16         data;
-    i16         ip_inc;
-  };
-  enum operand_type type;
-};
-
-enum prefix_type {
-  PREFIX_NONE   = 0,
-  PREFIX_LOCK   = 1 << 0,
-  PREFIX_REP    = 1 << 1,
-  PREFIX_REPNE  = 1 << 2,
-  PREFIX_SEG    = 1 << 3,
-};
-
-struct prefixes {
-  const struct reg *seg;
-  enum prefix_type types;
-};
-
-struct instr {
-  const char *str;
-  struct operand ops[2];
-  struct prefixes prefixes;
-  bool set_cs_addr;
-  u16 cs_addr;          // set cs to this new value
-  u8 size;              // instruction size in bytes
-  bool is_far;
-  bool w;
-};
-
-const struct instr_table_row *s_b0_to_row[256] = {0};
-
-// build index table for the first byte (b0)
-void build_index() {
+void decode_build_index() {
   u8 b0 = 0;
   do {
     const struct instr_table_row *found_row = NULL;
@@ -567,11 +384,7 @@ FORCE_INLINE enum prefix_type decode_prefix(u8 b, struct prefixes *out) {
 // is b0 prefix?
 //   store prefix, b0 = read next byte
 //
-// find instruction row matching first byte b0
-// for each row in instruction tables
-//   mask b0 with row.mask and compare to row opcode
-//
-// depending on instruction row's mask decode d, w, reg flags from b0
+// find instruction row matching first byte b0 using index
 //
 // if instruction row has displacement
 //   read displacement byte1 from the byte stream
@@ -782,151 +595,4 @@ struct instr decode_next_instr(struct stream *stream) {
   ret.size = stream->data - stream_instr_begin;
 
   return ret;
-}
-
-void print_ea(const struct ea *ea, bool set_cs_addr, bool is_far) {
-  if (is_far) {
-    printf("far ");
-  }
-
-  if (set_cs_addr) {
-    printf("%u", ea->direct_addr);
-    return;
-  }
-
-  if (ea->seg) {
-    printf("%s:", str_reg(*ea->seg));
-  }
-  if (ea->type == EA_DIRECT) {
-    printf("[%u]", ea->direct_addr);
-    return;
-  }
-
-  printf("[");
-  if (ea->compute_addr.base_reg) {
-    printf("%s", str_reg(*ea->compute_addr.base_reg));
-  }
-  if (ea->compute_addr.index_reg) {
-    printf(" + %s", str_reg(*ea->compute_addr.index_reg));
-  }
-  if (ea->type == EA_COMPUTE && ea->compute_addr.displ != 0) {
-    // print displacement with space after arithmetic operation character
-    const char *op = ea->compute_addr.displ < 0 ? "-" : "+";
-    u16 udispl = ea->compute_addr.displ < 0
-      ? ~ea->compute_addr.displ + 1
-      : ea->compute_addr.displ;
-    printf(" %s %u", op, udispl);
-  }
-  printf("]");
-}
-
-void print_operand(const struct operand *op, const struct instr *instr) {
-  switch (op->type) {
-    case OP_NONE:
-      break;
-    case OP_REG:
-      printf("%s", str_reg(op->reg));
-      break;
-    case OP_EA:
-      print_ea(&op->ea, instr->set_cs_addr, instr->is_far);
-      break;
-    case OP_DATA:
-      printf("%u", op->data);
-      break;
-    case OP_IP_INC: {
-      printf("$%+d", op->ip_inc + instr->size);
-    } break;
-  }
-}
-
-void print_prefixes(const struct prefixes *prefixes) {
-  if (prefixes->types & PREFIX_LOCK) {
-    printf("lock ");
-  }
-  if (prefixes->types & PREFIX_REP) {
-    printf("rep ");
-  }
-  if (prefixes->types & PREFIX_REPNE) {
-    printf("repne ");
-  }
-}
-
-void print_instr(const struct instr *instr) {
-  const struct operand *op0 = &instr->ops[0];
-  const struct operand *op1 = &instr->ops[1];
-
-  if (instr->prefixes.types != PREFIX_NONE) {
-    print_prefixes(&instr->prefixes);
-  }
-
-  printf("%s", instr->str);
-  if (op0->type != OP_NONE) {
-    printf(" ");
-    if (instr->set_cs_addr) {
-      printf("%u: ", instr->cs_addr);
-    }
-    // (byte|word) [memory]
-    // No needed to print width prefix it if register was specified as
-    // op1 explicitly.
-    // For now don't distinguish between explicit and implicit registers
-    // and always print width prefix
-    if (op0->type == OP_EA) {
-      printf("%s ", instr->w ? "word" : "byte");
-    }
-    print_operand(op0, instr);
-  }
-  if (op1->type != OP_NONE) {
-    printf(", ");
-    print_operand(op1, instr);
-  }
-  printf("\n");
-}
-
-int decode(struct stream *s) {
-  build_index();
-
-  u8 *sbegin = s->data;
-
-  while (s->data < s->end) {
-    struct instr instr = decode_next_instr(s);
-    if (!instr.str) {
-      fprintf(stderr, "Error: unsupported instruction at byte number %ld\n",
-          s->data - sbegin);
-      return 0;
-    }
-
-    print_instr(&instr);
-  }
-
-  return 1;
-}
-
-int main(int argc, char **argv) {
-  if (argc < 2) {
-    fprintf(stderr, "Usage:\ndecode [binary_file_to_decode]\n");
-    return 1;
-  }
-
-  const char *filename = argv[1];
-  int fd = open(filename, O_RDONLY);
-  if (fd == -1) {
-    perror("failed to open file:");
-    return 1;
-  }
-
-  off_t file_size = lseek(fd, 0, SEEK_END);
-  u8 *file_data = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
-  close(fd);
-  if (file_data == MAP_FAILED) {
-    perror("Error: mmap failed");
-    return 1;
-  }
-
-  struct stream s = {file_data, file_data + file_size};
-
-  printf("bits 16\n");
-  int res = decode(&s);
-
-  munmap(file_data, file_size);
-  return res ? 0 : 1;
 }

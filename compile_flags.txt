@@ -3,4 +3,5 @@
 -Wextra
 -Wpedantic
 -mcpu=native
--O3
+-O0
+-g

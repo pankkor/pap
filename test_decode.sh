@@ -2,7 +2,7 @@
 
 echo "Tests listings"
 
-for asm_in in listings/*.asm; do
+for asm_in in src/sim86/listings/*.asm; do
   basename="${asm_in##*/}"
   basename_wo_ext="${basename%.*}"
 
@@ -13,7 +13,7 @@ for asm_in in listings/*.asm; do
   echo "• $asm_in"
   (
     nasm "$asm_in" -o "$bin_in" || exit 1
-    build/decode "$bin_in" > "$asm_out" || exit 1
+    build/sim86 decode "$bin_in" > "$asm_out" || exit 1
     nasm "$asm_out" -o "$bin_out" || exit 1
     cmp "$bin_in" "$bin_out" || exit 1
   ) && echo "  ✅ passed" || {
@@ -24,7 +24,7 @@ for asm_in in listings/*.asm; do
     echo "\n––– Diff command –––"
     echo "diff '$asm_in' '$asm_out'"
     echo "\n––– Command –––"
-    echo "build/decode '$bin_in'"
+    echo "build/sim86 decode '$bin_in'"
     echo "  ❌ failed"
     exit 1
   }

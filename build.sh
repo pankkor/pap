@@ -5,7 +5,13 @@ cc_asm_flags="$cc_flags -S -fno-asynchronous-unwind-tables -fverbose-asm"
 
 [ -d build ] || mkdir build
 
-for src in src/*.c; do
+
+srcs="
+src/sim86/sim86.c
+src/sum/sum.c
+"
+
+for src in ${srcs}; do
   basename="${src##*/}"
   basename_wo_ext="${basename%.*}"
 
