@@ -16,10 +16,10 @@ target per source file. With `asm` argument the output is an assembly file.
 #### Prologue
 - `src/sum/sum.c`            - sum of array with and w/o SIMD
 
-#### Part 1:
-- `src/sim86/decode.c`       - 8086 instruction simulator
+#### Part 1: Simple 8086 simulator
+- `src/sim86/*.(h|c)`        - 8086 instruction simulator
 - `src/sim86/listings/*.asm` - 8086 decode and simulation test listings
-- `test_decode.sh`           - script to test decode.c with test listings
+- `test_sim86.sh`            - script to test sim86 with test listings
 
 ### Misc
 - `.lvimrc`                  - vim local config. Ignore if you don't use vim

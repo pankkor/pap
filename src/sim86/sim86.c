@@ -24,6 +24,35 @@
 #include <stdio.h>      // printf
 #include <string.h>     // strcmp
 
+// string view
+struct sv {
+  const char *begin;
+  const char *end;
+};
+
+const char *s_dot = ".";
+
+// Custom basename returning string view
+struct sv basename(const char *path) {
+  if (*path == 0) {
+    return (struct sv){s_dot, s_dot + 1};
+  }
+
+  struct sv prev_sv = {path, path + 1};
+  struct sv sv = {path, path + 1};
+
+  do {
+    if (*path == '\\' || *path == '/') {
+      prev_sv = sv;
+      sv.begin = path + 1;
+    }
+    sv.end = ++path;
+  } while (*path != 0);
+  sv.end = path;
+
+  return sv.end - sv.begin > 0 ? sv : prev_sv;
+}
+
 int decode(struct stream *s) {
   decode_build_index();
 
@@ -53,8 +82,8 @@ int main(int argc, char **argv) {
     command = strcmp(argv[1], "decode") == 0 ? DECODE : SIMULATE;
   }
 
-  const char *filename = argv[argc - 1];
-  int fd = open(filename, O_RDONLY);
+  const char *filepath = argv[argc - 1];
+  int fd = open(filepath, O_RDONLY);
   if (fd == -1) {
     perror("failed to open file:");
     return 1;
@@ -75,7 +104,10 @@ int main(int argc, char **argv) {
     printf("bits 16\n");
     res = decode(&s);
   } else {
-    printf("SIMULATE\n");
+    printf("%s\n", filepath);
+    struct sv filename_sv = basename(filepath);
+    printf("--- test\\%.*s execution\n",
+        (i32)(filename_sv.end - filename_sv.begin), filename_sv.begin);
     res = 1;
   }
 

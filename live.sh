@@ -6,7 +6,7 @@ Requirements: 'entr' utility installed. Build directory: './build'
 
 OPTIONS
   -h, --help
-  --build-and-run (sum|decode)
+  --build-and-run (sum|sim86_decode|sim86_simulate)
 """
 
 case "$1" in
@@ -19,10 +19,10 @@ case "$1" in
         echo src/sum/sum.c | entr -cs './build.sh && ./build/sum'
         ;;
       sim86_decode)
-        echo src/sim86/sim86.c | entr -cs './build.sh && ./test_decode.sh'
+        echo src/sim86/sim86.c | entr -cs './build.sh && ./test_sim86.sh decode'
         ;;
-      sim86)
-        echo src/sim86/sim86.c | entr -cs './build.sh && ./test_simulate.sh'
+      sim86_simulate)
+        echo src/sim86/sim86.c | entr -cs './build.sh && ./test_sim86.sh simulate'
         ;;
       *)
         echo "Error: unsupported target '$2'" >&2
