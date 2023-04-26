@@ -104,10 +104,30 @@ int main(int argc, char **argv) {
     printf("bits 16\n");
     res = decode(&s);
   } else {
-    printf("%s\n", filepath);
     struct sv filename_sv = basename(filepath);
-    printf("--- test\\%.*s execution\n",
+    printf("--- test\\%.*s execution ---\n",
         (i32)(filename_sv.end - filename_sv.begin), filename_sv.begin);
+    printf(
+"mov ax, 1 ; ax:0x0->0x1 \n"
+"mov bx, 2 ; bx:0x0->0x2 \n"
+"mov cx, 3 ; cx:0x0->0x3 \n"
+"mov dx, 4 ; dx:0x0->0x4 \n"
+"mov sp, 5 ; sp:0x0->0x5 \n"
+"mov bp, 6 ; bp:0x0->0x6 \n"
+"mov si, 7 ; si:0x0->0x7 \n"
+"mov di, 8 ; di:0x0->0x8 \n"
+"\n"
+"Final registers:\n"
+"      ax: 0x0001 (1)\n"
+"      bx: 0x0002 (2)\n"
+"      cx: 0x0003 (3)\n"
+"      dx: 0x0004 (4)\n"
+"      sp: 0x0005 (5)\n"
+"      bp: 0x0006 (6)\n"
+"      si: 0x0007 (7)\n"
+"      di: 0x0008 (8)\n"
+"\n"
+);
     res = 1;
   }
 

@@ -2,23 +2,35 @@
 
 listings_dir='src/sim86/listings'
 
-decode=1
-simulate=1
+help="""
+Test script
+
+OPTIONS
+  -h, --help
+  --sim86_decode    test 8086 instructions decode listings
+  --sim86_simulate  test 8086 instructions simulate listings
+"""
+
+sim86_decode=1
+sim86_simulate=1
 
 case "$1" in
-  decode)
-    simulate=0
+  -h | --help)
+    echo "$help"
     ;;
-  simulate)
-    decode=0
+  sim86_decode)
+    sim86_simulate=0
+    ;;
+  sim86_simulate)
+    sim86_decode=0
     ;;
 esac
 
-if [ $decode -gt 0 ]; then
+if [ $sim86_decode -gt 0 ]; then
   echo ''
-  echo '–––––––––––––––––––––––'
-  echo 'sim86 decode listings'
-  echo '–––––––––––––––––––––––'
+  echo '–––––––––––––––––––––––––––––––'
+  echo 'sim86 sim86_decode listings'
+  echo '–––––––––––––––––––––––––––––––'
   for asm_in in "$listings_dir"/*.asm; do
     basename="${asm_in##*/}"
     basename_wo_ext="${basename%.*}"
@@ -41,18 +53,18 @@ if [ $decode -gt 0 ]; then
       echo '\n––– Diff command –––'
       echo "diff '$asm_in' '$asm_out'"
       echo '\n––– Command –––'
-      echo "build/sim86 decode '$bin_in'"
+      echo "build/sim86 sim86_decode '$bin_in'"
       echo '  ❌ failed'
       exit 1
     }
   done
 fi
 
-if [ $simulate -gt 0 ]; then
+if [ $sim86_simulate -gt 0 ]; then
   echo ''
-  echo '–––––––––––––––––––––––'
-  echo "sim86 simulate listings"
-  echo '–––––––––––––––––––––––'
+  echo '–––––––––––––––––––––––––––––––'
+  echo "sim86 sim86_simulate listings"
+  echo '–––––––––––––––––––––––––––––––'
   # simulation listings have *.txt with expected output
   for sim_in in "$listings_dir"/*.txt; do
     basename="${sim_in##*/}"
@@ -68,12 +80,10 @@ if [ $simulate -gt 0 ]; then
       build/sim86 "$bin_in" > "$sim_out" || exit 1
       cmp "$sim_in" "$sim_out" || exit 1
     ) && echo '  ✅ passed' || {
-      echo '\n––– Expected simulation output –––'
-      cat "$sim_in"
-      echo '\n––– Produced simulation output –––'
-      cat "$sim_out"
-      echo '\n––– Diff command –––'
+      echo '\n––– Diff –––'
       echo "diff '$sim_in' '$sim_out'"
+      echo ''
+      diff -y --color -W 110 "$sim_in" "$sim_out"
       echo '\n––– Command –––'
       echo "build/sim86 '$bin_in'"
       echo '  ❌ failed'
