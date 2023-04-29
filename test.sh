@@ -83,7 +83,7 @@ if [ $sim86_simulate -gt 0 ]; then
       echo '\n––– Diff –––'
       echo "diff '$sim_in' '$sim_out'"
       echo ''
-      diff -y --color -W 110 "$sim_in" "$sim_out"
+      diff -d -y --color -W 110 "$sim_in" "$sim_out"
       echo '\n––– Command –––'
       echo "build/sim86 '$bin_in'"
       echo '  ❌ failed'

@@ -1,15 +1,12 @@
-// Performance-Aware-Programming Course
-// https://www.computerenhance.com/p/table-of-contents
-//
-// Part 1
-// 8086 simple simulator
-//
-// Run 'test_decode.sh' that tests decoding on all the listings in listings dir
-
 #include "sim86_types.h"
 #include "sim86_instr.h"
+#include "sim86_simulate.h"
 
 #include <stdio.h>      // printf
+
+enum reg_type s_print_regs[] = {
+  REG_A, REG_B, REG_C, REG_D, REG_SP, REG_BP, REG_SI, REG_DI,
+};
 
 void print_ea(const struct ea *ea, bool set_cs_addr, bool is_far) {
   if (is_far) {
@@ -108,5 +105,25 @@ void print_instr(const struct instr *instr) {
     printf(", ");
     print_operand(op1, instr);
   }
-  printf("\n");
+}
+
+void print_state_diff(const struct state *state_old,
+    const struct state *state_new) {
+  // diff not insluding segment registers
+  for (u64 i = 0; i < ARRAY_COUNT(s_print_regs); ++i) {
+    struct reg reg = {s_print_regs[i], REG_MODE_X};
+    if (state_old->regs[i] != state_new->regs[i]) {
+      printf("%s:0x%x->0x%x ",
+        str_reg(reg),  state_old->regs[reg.type], state_new->regs[reg.type]);
+    }
+  }
+}
+
+void print_state_registers(const struct state *state) {
+  // don't print segment registers
+  for (u64 i = 0; i < ARRAY_COUNT(s_print_regs); ++i) {
+    struct reg reg = {s_print_regs[i], REG_MODE_X};
+    printf("      %s: 0x%04x (%u)\n",
+        str_reg(reg),  state->regs[reg.type], state->regs[reg.type]);
+  }
 }

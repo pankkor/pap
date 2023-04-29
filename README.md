@@ -19,7 +19,7 @@ target per source file. With `asm` argument the output is an assembly file.
 #### Part 1: Simple 8086 simulator
 - `src/sim86/*.(h|c)`        - 8086 instruction simulator
 - `src/sim86/listings/*.asm` - 8086 decode and simulation test listings
-- `test_sim86.sh`            - script to test sim86 with test listings
+- `test.sh`                  - script to test sim86 with test listings
 
 ### Misc
 - `.lvimrc`                  - vim local config. Ignore if you don't use vim

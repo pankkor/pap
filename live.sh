@@ -16,10 +16,10 @@ case "$1" in
   --build-and-test)
     case "$2" in
       sum)
-        echo src/sum/sum.c | entr -cs './build.sh && ./build/sum'
+        echo build/sum | entr -cs './build.sh && ./build/sum'
         ;;
       sim86_decode | sim86_simulate)
-        echo src/sim86/sim86.c | entr -cs "./build.sh && ./test.sh $2"
+        echo build/sim86|  entr -cs "./build.sh && ./test.sh $2"
         ;;
       *)
         echo "Error: unsupported target '$2'" >&2

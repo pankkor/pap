@@ -1,12 +1,11 @@
-// Performance-Aware-Programming Course
-// https://www.computerenhance.com/p/table-of-contents
-//
-// Part 1
-// 8086 simple simulator
-//
-// Run 'test_decode.sh' that tests decoding on all the listings in listings dir
-
 struct instr;
+struct state;
 
 // Print instruction disassembly to stdout
 void print_instr(const struct instr *instr);
+
+// Print diff between 2 simulation states to stdout
+void print_state_diff(const struct state *state_old, const struct state *state_new);
+
+// Dump state of all simulation state registers to stdout
+void print_state_registers(const struct state *state);

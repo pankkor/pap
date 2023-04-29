@@ -1,11 +1,3 @@
-// Performance-Aware-Programming Course
-// https://www.computerenhance.com/p/table-of-contents
-//
-// Part 1
-// 8086 simple simulator
-//
-// Run 'test_decode.sh' that tests decoding on all the listings in listings dir
-
 #include "sim86_types.h"
 #include "sim86_instr.h"
 #include "sim86_stream.h"

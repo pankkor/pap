@@ -24,6 +24,7 @@ enum reg_type {
   REG_CS,
   REG_SS,
   REG_DS,
+  REG_COUNT,
 };
 
 enum reg_mode {
@@ -44,8 +45,8 @@ struct reg {
 // register
 const struct reg *reg_ptr(enum reg_type reg_type, enum reg_mode desired_mode);
 
-// Orrect string for register
-// F.e. str_reg(struct reg){REG_BP, REG_MODE_L) will return "BP"
+// Correct string for register
+// F.e. str_reg(struct reg){REG_BP, REG_MODE_L) will return "bp"
 // (even though incorrect access mode was specified)
 const char *str_reg(struct reg reg);
 
