@@ -78,12 +78,12 @@ if [ $sim86_simulate -gt 0 ]; then
     (
       nasm "$asm_in" -o "$bin_in" || exit 1
       build/sim86 "$bin_in" > "$sim_out" || exit 1
-      diff -w "$sim_in" "$sim_out" || exit 1
+      diff -w "$sim_in" "$sim_out" > /dev/null || exit 1
     ) && echo '  ✅ passed' || {
       echo '\n––– Diff –––'
       echo "diff '$sim_in' '$sim_out'"
       echo ''
-      diff -w -d -y --color -b -W 180 "$sim_in" "$sim_out"
+      diff -w -d -y --color=auto -b -W 108 "$sim_in" "$sim_out"
       echo '\n––– Command –––'
       echo "build/sim86 '$bin_in'"
       echo '  ❌ failed'

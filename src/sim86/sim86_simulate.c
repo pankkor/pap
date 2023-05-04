@@ -9,6 +9,17 @@ struct mem {
   u8 size;
 };
 
+static inline bool calc_parity(u8 v) {
+  return __builtin_popcount(v) % 2 == 0;
+}
+
+void flags_reg_add(struct flags_reg *out_fr, u16 v0, u16 v1) {
+  u16 res16 = v0 + v1;
+  out_fr->bits[FLAGS_BIT_SIGN] = (res16 & 0x8000) != 0;
+  out_fr->bits[FLAGS_BIT_ZERO] = res16 == 0;
+  out_fr->bits[FLAGS_BIT_PARITY] = calc_parity(res16);
+}
+
 u16 load_mem(struct mem mem) {
   u16 v = *mem.ptr;
   v >>= mem.offset;
@@ -77,20 +88,43 @@ struct state state_simulate_instr(const struct state *state,
     const struct instr *instr) {
   assert(instr->type != INSTR_UNKNOWN);
 
-  struct state state_new = *state;
+  struct state new_state = *state;
 
   switch(instr->type) {
     case INSTR_MOV: {
-      struct mem dst = op_to_dst(instr->ops[0], &state_new);
-      u16 v = load_op(instr->ops[1], &state_new);
-      store_mem(dst, v);
+      struct mem dst = op_to_dst(instr->ops[0], &new_state);
+      u16 v0 = load_op(instr->ops[1], &new_state);
+      store_mem(dst, v0);
+    } break;
+
+    case INSTR_ADD: {
+      struct mem dst = op_to_dst(instr->ops[0], &new_state);
+      u16 v0 = load_op(instr->ops[0], &new_state);
+      u16 v1 = load_op(instr->ops[1], &new_state);
+      flags_reg_add(&new_state.flags_reg, v0, v1);
+      store_mem(dst, v0 + v1);
+    } break;
+
+    case INSTR_SUB: {
+      struct mem dst = op_to_dst(instr->ops[0], &new_state);
+      u16 v0 = load_op(instr->ops[0], &new_state);
+      u16 v1 = load_op(instr->ops[1], &new_state);
+      flags_reg_add(&new_state.flags_reg, v0, -v1);
+      store_mem(dst, v0 - v1);
+    } break;
+
+    case INSTR_CMP: {
+      u16 v0 = load_op(instr->ops[0], &new_state);
+      u16 v1 = load_op(instr->ops[1], &new_state);
+      flags_reg_add(&new_state.flags_reg, v0, -v1);
     } break;
 
     default:
-      fprintf(stderr, "Sim error: unhandled instruction '%s' of type %d\n",
+      fprintf(stderr,
+          "Simulation error: unhandled instruction '%s' of type %d\n",
           instr->str, instr->type);
 
   }
 
-  return state_new;
+  return new_state;
 }

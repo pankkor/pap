@@ -5,11 +5,22 @@
 #include <stdio.h>      // printf
 
 enum reg_type s_print_regs[] = {
-  REG_A, REG_B, REG_C, REG_D, REG_SP, REG_BP, REG_SI, REG_DI,
+  REG_A,
+  REG_B,
+  REG_C,
+  REG_D,
+  REG_SP,
+  REG_BP,
+  REG_SI,
+  REG_DI,
+  REG_ES,
+  REG_CS,
+  REG_SS,
+  REG_DS,
 };
 
-enum reg_type s_print_seg_regs[] = {
- REG_ES, REG_CS, REG_SS, REG_DS,
+char s_flags_bit_chars[FLAGS_BIT_COUNT] = {
+  'C', 'P', 'A', 'Z', 'S', 'O', 'I', 'D', 'T',
 };
 
 void print_ea(const struct ea *ea, bool set_cs_addr, bool is_far) {
@@ -111,41 +122,62 @@ void print_instr(const struct instr *instr) {
   }
 }
 
-void print_state_diff(const struct state *state_old,
-    const struct state *state_new) {
-  // diff non-segment registers
-  for (u64 i = 0; i < ARRAY_COUNT(s_print_regs); ++i) {
-    struct reg reg = {s_print_regs[i], REG_MODE_X};
-    if (state_old->regs[reg.type] != state_new->regs[reg.type]) {
-      printf("%s:0x%x->0x%x ",
-        str_reg(reg),  state_old->regs[reg.type], state_new->regs[reg.type]);
-    }
-  }
-
-  // diff segment registers
-  for (u64 i = 0; i < ARRAY_COUNT(s_print_seg_regs); ++i) {
-    struct reg reg = {s_print_seg_regs[i], REG_MODE_X};
-    if (state_old->regs[reg.type] != state_new->regs[reg.type]) {
-      printf("%s:0x%x->0x%x ",
-        str_reg(reg),  state_old->regs[reg.type], state_new->regs[reg.type]);
+void print_flags_reg(const struct flags_reg *flags_reg) {
+  for (u64 i = 0; i < FLAGS_BIT_COUNT; ++i) {
+    if (flags_reg->bits[i] != 0) {
+      printf("%c", s_flags_bit_chars[i]);
     }
   }
 }
 
-void print_state_registers(const struct state *state) {
-  // diff non-segment registers
+void print_state_diff(const struct state *old_state,
+    const struct state *new_state) {
   for (u64 i = 0; i < ARRAY_COUNT(s_print_regs); ++i) {
     struct reg reg = {s_print_regs[i], REG_MODE_X};
-    printf("      %s: 0x%04x (%u)\n",
-        str_reg(reg),  state->regs[reg.type], state->regs[reg.type]);
+    if (old_state->regs[reg.type] != new_state->regs[reg.type]) {
+      printf("%s:0x%x->0x%x ",
+        str_reg(reg),  old_state->regs[reg.type], new_state->regs[reg.type]);
+    }
   }
-  // diff segment registers
-  for (u64 i = 0; i < ARRAY_COUNT(s_print_seg_regs); ++i) {
-    struct reg reg = {s_print_seg_regs[i], REG_MODE_X};
-    // print only if not zero to match listing output
+
+  bool should_print_flags_reg = false;
+
+  for (u64 i = 0; i < FLAGS_BIT_COUNT; ++i) {
+    if (old_state->flags_reg.bits[i] != new_state->flags_reg.bits[i]) {
+      should_print_flags_reg = true;
+      break;
+    }
+  }
+
+  if (should_print_flags_reg) {
+    printf("flags:");
+    print_flags_reg(&old_state->flags_reg);
+    printf("->");
+    print_flags_reg(&new_state->flags_reg);
+  }
+}
+
+void print_state_registers(const struct state *state) {
+  for (u64 i = 0; i < ARRAY_COUNT(s_print_regs); ++i) {
+    struct reg reg = {s_print_regs[i], REG_MODE_X};
     if (state->regs[reg.type] != 0) {
       printf("      %s: 0x%04x (%u)\n",
           str_reg(reg),  state->regs[reg.type], state->regs[reg.type]);
     }
+  }
+
+  bool should_print_flags_reg = false;
+
+  for (u64 i = 0; i < FLAGS_BIT_COUNT; ++i) {
+    if (state->flags_reg.bits[i] != 0) {
+      should_print_flags_reg = true;
+      break;
+    }
+  }
+
+  if (should_print_flags_reg) {
+    printf("   flags: ");
+    print_flags_reg(&state->flags_reg);
+    printf("\n");
   }
 }
