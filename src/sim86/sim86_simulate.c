@@ -9,15 +9,24 @@ struct mem {
   u8 size;
 };
 
-static inline bool calc_parity(u8 v) {
+static FORCE_INLINE u16 calc_sign_mask(u8 bits) {
+  return 1 << (bits - 1);
+}
+
+static FORCE_INLINE u16 calc_bits_mask(u8 bits) {
+  return (1 << bits) - 1;
+}
+
+static FORCE_INLINE bool calc_parity(u8 v) {
   return __builtin_popcount(v) % 2 == 0;
 }
 
-void flags_reg_add(struct flags_reg *out_fr, u16 v0, u16 v1) {
-  u16 res16 = v0 + v1;
-  out_fr->bits[FLAGS_BIT_SIGN] = (res16 & 0x8000) != 0;
-  out_fr->bits[FLAGS_BIT_ZERO] = res16 == 0;
-  out_fr->bits[FLAGS_BIT_PARITY] = calc_parity(res16);
+void calc_flags_reg(struct flags_reg *out_fr, u32 res_masked, u32 res_unmasked,
+    u32 sign_mask) {
+  out_fr->bits[FLAGS_BIT_CARRY]   = ((res_unmasked & (sign_mask << 1)) != 0);
+  out_fr->bits[FLAGS_BIT_PARITY]  = calc_parity(res_masked);
+  out_fr->bits[FLAGS_BIT_ZERO]    = res_masked == 0;
+  out_fr->bits[FLAGS_BIT_SIGN]    = (res_masked & sign_mask) != 0;
 }
 
 u16 load_mem(struct mem mem) {
@@ -101,22 +110,54 @@ struct state state_simulate_instr(const struct state *state,
       struct mem dst = op_to_dst(instr->ops[0], &new_state);
       u16 v0 = load_op(instr->ops[0], &new_state);
       u16 v1 = load_op(instr->ops[1], &new_state);
-      flags_reg_add(&new_state.flags_reg, v0, v1);
-      store_mem(dst, v0 + v1);
+
+      u16 sign_mask = calc_sign_mask(instr->w ? 16 : 8);
+      u16 mask = calc_bits_mask(instr->w ? 16 : 8);
+      u16 res = (v0 & mask) + (v1 & mask);
+      u32 res_unmasked = (u32)v0 + v1;
+
+      calc_flags_reg(&new_state.flags_reg, res, res_unmasked, sign_mask);
+      new_state.flags_reg.bits[FLAGS_BIT_AUXILIARY_CARRY] =
+        (((v0 & 0x0F) + (v1 & 0x0F)) & 0x10) != 0;
+      new_state.flags_reg.bits[FLAGS_BIT_OVERFLOW] =
+        (~(v0 ^ v1) & (v0 ^ res) & sign_mask) != 0;
+
+      store_mem(dst, res);
     } break;
 
     case INSTR_SUB: {
       struct mem dst = op_to_dst(instr->ops[0], &new_state);
       u16 v0 = load_op(instr->ops[0], &new_state);
       u16 v1 = load_op(instr->ops[1], &new_state);
-      flags_reg_add(&new_state.flags_reg, v0, -v1);
-      store_mem(dst, v0 - v1);
+
+      u16 sign_mask = calc_sign_mask(instr->w ? 16 : 8);
+      u16 mask = calc_bits_mask(instr->w ? 16 : 8);
+      u16 res = (v0 & mask) - (v1 & mask);
+      u32 res_unmasked = (u32)v0 - v1;
+
+      calc_flags_reg(&new_state.flags_reg, res, res_unmasked, sign_mask);
+      new_state.flags_reg.bits[FLAGS_BIT_AUXILIARY_CARRY] =
+        (((v0 & 0x0F) - (v1 & 0x0F)) & 0x10) != 0;
+      new_state.flags_reg.bits[FLAGS_BIT_OVERFLOW] =
+        ((v0 ^ v1) & (v0 ^ res) & sign_mask) != 0;
+
+      store_mem(dst, res);
     } break;
 
     case INSTR_CMP: {
       u16 v0 = load_op(instr->ops[0], &new_state);
       u16 v1 = load_op(instr->ops[1], &new_state);
-      flags_reg_add(&new_state.flags_reg, v0, -v1);
+
+      u16 sign_mask = calc_sign_mask(instr->w ? 16 : 8);
+      u16 mask = calc_bits_mask(instr->w ? 16 : 8);
+      u16 res = (v0 & mask) - (v1 & mask);
+      u32 res_unmasked = (u32)v0 - v1;
+
+      calc_flags_reg(&new_state.flags_reg, res, res_unmasked, sign_mask);
+      new_state.flags_reg.bits[FLAGS_BIT_AUXILIARY_CARRY] =
+        (((v0 & 0x0F) - (v1 & 0x0F)) & 0x10) != 0;
+      new_state.flags_reg.bits[FLAGS_BIT_OVERFLOW] =
+        ((v0 ^ v1) & (v0 ^ res) & sign_mask) != 0;
     } break;
 
     default:
