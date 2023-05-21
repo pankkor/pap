@@ -37,7 +37,7 @@ void print_ea(const struct ea *ea, bool set_cs_addr, bool is_far) {
     printf("%s:", str_reg(*ea->seg));
   }
   if (ea->type == EA_DIRECT) {
-    printf("[%u]", ea->direct_addr);
+    printf("[+%u]", ea->direct_addr);
     return;
   }
 

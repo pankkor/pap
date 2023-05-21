@@ -4,7 +4,7 @@
 #include <stdio.h>    // fprintf
 
 struct mem {
-  u16 *ptr;
+  u8 *ptr;
   u8 offset;
   u8 size;
 };
@@ -30,42 +30,84 @@ void calc_flags_reg(struct flags_reg *out_fr, u32 res_masked, u32 res_unmasked,
 }
 
 u16 load_mem(struct mem mem) {
-  u16 v = *mem.ptr;
-  v >>= mem.offset;
-  u16 mask = (0x1 << mem.size) - 1;
-  return v & mask;
+  u8 *ptr = mem.ptr + mem.offset;
+  switch (mem.size) {
+    case 1:
+      return *ptr;
+    case 2:
+      return *(u16 *)ptr;
+    default:
+      assert(0 && "Bad memory load size");
+      return 0;
+  }
 }
 
 void store_mem(struct mem mem, u16 value) {
-  u16 old = *mem.ptr;
-
-  u16 mask = (0x1 << mem.size) - 1;
-  mask = mask << mem.offset;
-
-  u16 new = (old & ~mask) | ((value << mem.offset) & mask);
-  *mem.ptr = new;
+  u8 *ptr = mem.ptr + mem.offset;
+  *ptr = value;
+  switch (mem.size) {
+    case 1:
+      *ptr = value;
+      break;
+    case 2:
+      *(u16 *)ptr = value;
+      break;
+    default:
+      assert(0 && "Bad memory store size");
+  }
 }
 
 struct mem reg_mode_to_offset_size(enum reg_mode m) {
   assert(m != REG_MODE_COUNT);
   switch(m) {
-    case REG_MODE_L:      return (struct mem){0, 0, 8};
-    case REG_MODE_H:      return (struct mem){0, 8, 8};
-    case REG_MODE_X:      return (struct mem){0, 0, 16};
+    case REG_MODE_L:      return (struct mem){0, 0, 1};
+    case REG_MODE_H:      return (struct mem){0, 1, 1};
+    case REG_MODE_X:      return (struct mem){0, 0, 2};
     case REG_MODE_COUNT:  return (struct mem){0};
   }
 }
 
-u16 load_op(struct operand op, struct state *state) {
+u16 load_reg(struct reg reg, struct state *state) {
+  struct mem mem = reg_mode_to_offset_size(reg.mode);
+  mem.ptr = (u8 *)&state->regs[reg.type];
+  return load_mem(mem);
+}
+
+u16 load_op(struct operand op, struct state *state, bool w) {
   switch(op.type) {
     case OP_NONE:
       return 0;
 
     case OP_REG: {
-      struct reg reg = op.reg;
-      struct mem mem = reg_mode_to_offset_size(reg.mode);
-      mem.ptr = &state->regs[reg.type];
-      return load_mem(mem);
+      return load_reg(op.reg, state);
+    }
+
+    case OP_EA: {
+      struct ea ea = op.ea;
+
+      struct mem mem = {0, 0, w ? 2 : 1};
+
+      switch(ea.type) {
+        case EA_DIRECT:
+          mem.ptr = state->memory + ea.direct_addr;
+          return load_mem(mem);
+
+        case EA_COMPUTE: {
+          u16 base = 0;
+          u16 index = 0;
+          i16 displ = ea.compute_addr.displ;
+          if (ea.compute_addr.base_reg) {
+            base = load_reg(*ea.compute_addr.base_reg, state);
+          }
+          if (ea.compute_addr.index_reg) {
+            index = load_reg(*ea.compute_addr.index_reg, state);
+          }
+          mem.ptr = state->memory + base + index + displ;
+          return load_mem(mem);
+        }
+      }
+      assert(0 && "Unhandled EA type");
+      break;
     }
 
     case OP_DATA:
@@ -75,13 +117,13 @@ u16 load_op(struct operand op, struct state *state) {
       return op.ip_inc;
 
     default:
-      assert("unhandled type" || op.type);
-      return 0;
+      assert(0 && "Unhandled type" && op.type);
+      break;
   }
   return 0;
 }
 
-struct mem op_to_dst(struct operand op, struct state *state) {
+struct mem op_to_dst(struct operand op, struct state *state, bool w) {
   switch(op.type) {
     case OP_NONE:
       return (struct mem){0};
@@ -89,7 +131,7 @@ struct mem op_to_dst(struct operand op, struct state *state) {
     case OP_REG: {
       struct reg reg = op.reg;
       struct mem mem = reg_mode_to_offset_size(reg.mode);
-      mem.ptr = &state->regs[reg.type];
+      mem.ptr = (u8 *)&state->regs[reg.type];
       return mem;
     }
 
@@ -97,8 +139,36 @@ struct mem op_to_dst(struct operand op, struct state *state) {
       assert(0 && "Can't convert OP_DATA to memory");
       break;
 
+    case OP_EA: {
+      struct ea ea = op.ea;
+
+      struct mem mem = {0, 0, w ? 2 : 1};
+
+      switch(ea.type) {
+        case EA_DIRECT:
+          mem.ptr = state->memory + ea.direct_addr;
+          return mem;
+
+        case EA_COMPUTE: {
+          u16 base = 0;
+          u16 index = 0;
+          i16 displ = ea.compute_addr.displ;
+          if (ea.compute_addr.base_reg) {
+            base = load_reg(*ea.compute_addr.base_reg, state);
+          }
+          if (ea.compute_addr.index_reg) {
+            index = load_reg(*ea.compute_addr.index_reg, state);
+          }
+          mem.ptr = state->memory + base + index + displ;
+          return mem;
+        }
+      }
+      assert(0 && "Unhandled EA type");
+      break;
+    }
+
     default:
-      assert("unhandled type" || op.type);
+      assert(0 && "Unhandled type" && op.type);
       break;
   }
   return (struct mem){0};
@@ -106,7 +176,7 @@ struct mem op_to_dst(struct operand op, struct state *state) {
 
 void cond_jump(struct state *state, const struct instr *instr, bool cond) {
   if (cond) {
-    i16 ip_inc = load_op(instr->ops[0], state);
+    i16 ip_inc = load_op(instr->ops[0], state, instr->w);
     state->ip += ip_inc;
   }
 }
@@ -122,15 +192,15 @@ struct state state_simulate_instr(const struct state *state,
 
   switch(instr->type) {
     case INSTR_MOV: {
-      struct mem dst = op_to_dst(instr->ops[0], &new_state);
-      u16 v0 = load_op(instr->ops[1], &new_state);
+      struct mem dst = op_to_dst(instr->ops[0], &new_state, instr->w);
+      u16 v0 = load_op(instr->ops[1], &new_state, instr->w);
       store_mem(dst, v0);
     } break;
 
     case INSTR_ADD: {
-      struct mem dst = op_to_dst(instr->ops[0], &new_state);
-      u16 v0 = load_op(instr->ops[0], &new_state);
-      u16 v1 = load_op(instr->ops[1], &new_state);
+      struct mem dst = op_to_dst(instr->ops[0], &new_state, instr->w);
+      u16 v0 = load_op(instr->ops[0], &new_state, instr->w);
+      u16 v1 = load_op(instr->ops[1], &new_state, instr->w);
 
       u16 sign_mask = calc_sign_mask(instr->w ? 16 : 8);
       u16 mask = calc_bits_mask(instr->w ? 16 : 8);
@@ -145,9 +215,9 @@ struct state state_simulate_instr(const struct state *state,
     } break;
 
     case INSTR_SUB: {
-      struct mem dst = op_to_dst(instr->ops[0], &new_state);
-      u16 v0 = load_op(instr->ops[0], &new_state);
-      u16 v1 = load_op(instr->ops[1], &new_state);
+      struct mem dst = op_to_dst(instr->ops[0], &new_state, instr->w);
+      u16 v0 = load_op(instr->ops[0], &new_state, instr->w);
+      u16 v1 = load_op(instr->ops[1], &new_state, instr->w);
 
       u16 sign_mask = calc_sign_mask(instr->w ? 16 : 8);
       u16 mask = calc_bits_mask(instr->w ? 16 : 8);
@@ -162,8 +232,8 @@ struct state state_simulate_instr(const struct state *state,
     } break;
 
     case INSTR_CMP: {
-      u16 v0 = load_op(instr->ops[0], &new_state);
-      u16 v1 = load_op(instr->ops[1], &new_state);
+      u16 v0 = load_op(instr->ops[0], &new_state, instr->w);
+      u16 v1 = load_op(instr->ops[1], &new_state, instr->w);
 
       u16 sign_mask = calc_sign_mask(instr->w ? 16 : 8);
       u16 mask = calc_bits_mask(instr->w ? 16 : 8);

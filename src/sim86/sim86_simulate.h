@@ -20,7 +20,10 @@ struct flags_reg {
   u8 bits[FLAGS_COUNT];
 };
 
+enum {MEMORY_SIZE = 1024 * 1024};
+
 struct state {
+  u8 memory[MEMORY_SIZE];
   struct flags_reg flags_reg;
   u16 regs[REG_COUNT];
   u16 ip;
