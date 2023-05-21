@@ -261,7 +261,7 @@ const struct instr_table_row s_instr_rows[] = {
   {"pop",   INSTR_POP,    0xFF,  0x8F, -1, {0},                               DISPL_FMT_RM,     INSTR_FMT_NO_DATA}, // 1000 1111    - pop R/M
   {"je",    INSTR_JE,     0xFF,  0x74, -1, {0},                               DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 0100    - je /jz   IP-INC8
   {"jl",    INSTR_JL,     0xFF,  0x7C, -1, {0},                               DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1100    - jl /jnge IP-INC8
-  {"jle",   INSTR_JLE,    0xFF,  0x7E, -1, {0},                               DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1110    - jle/jng  IP-INC8
+  {"jng",   INSTR_JNG,    0xFF,  0x7E, -1, {0},                               DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1110    - jng/jle  IP-INC8
   {"jb",    INSTR_JB,     0xFF,  0x72, -1, {0},                               DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 0010    - jb /jnae IP-INC8
   {"jbe",   INSTR_JBE,    0xFF,  0x76, -1, {0},                               DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 0110    - jbe/jna  IP-INC8
   {"jp",    INSTR_JP,     0xFF,  0x7A, -1, {0},                               DISPL_FMT_NONE,   INSTR_FMT_IP_INC8}, // 0111 1010    - jp /jpe  IP-INC8

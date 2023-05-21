@@ -19,7 +19,7 @@ enum reg_type s_print_regs[] = {
   REG_DS,
 };
 
-char s_flags_bit_chars[FLAGS_BIT_COUNT] = {
+char s_flags_bit_chars[FLAGS_COUNT] = {
   'C', 'P', 'A', 'Z', 'S', 'O', 'I', 'D', 'T',
 };
 
@@ -123,7 +123,7 @@ void print_instr(const struct instr *instr) {
 }
 
 void print_flags_reg(const struct flags_reg *flags_reg) {
-  for (u64 i = 0; i < FLAGS_BIT_COUNT; ++i) {
+  for (u64 i = 0; i < FLAGS_COUNT; ++i) {
     if (flags_reg->bits[i] != 0) {
       printf("%c", s_flags_bit_chars[i]);
     }
@@ -131,7 +131,7 @@ void print_flags_reg(const struct flags_reg *flags_reg) {
 }
 
 void print_state_diff(const struct state *old_state,
-    const struct state *new_state) {
+    const struct state *new_state, bool skip_ip) {
   for (u64 i = 0; i < ARRAY_COUNT(s_print_regs); ++i) {
     struct reg reg = {s_print_regs[i], REG_MODE_X};
     if (old_state->regs[reg.type] != new_state->regs[reg.type]) {
@@ -140,9 +140,15 @@ void print_state_diff(const struct state *old_state,
     }
   }
 
+  if (!skip_ip) {
+    if (old_state->ip != new_state->ip) {
+      printf("ip:0x%x->0x%x ", old_state->ip, new_state->ip);
+    }
+  }
+
   bool should_print_flags_reg = false;
 
-  for (u64 i = 0; i < FLAGS_BIT_COUNT; ++i) {
+  for (u64 i = 0; i < FLAGS_COUNT; ++i) {
     if (old_state->flags_reg.bits[i] != new_state->flags_reg.bits[i]) {
       should_print_flags_reg = true;
       break;
@@ -157,7 +163,7 @@ void print_state_diff(const struct state *old_state,
   }
 }
 
-void print_state_registers(const struct state *state) {
+void print_state_registers(const struct state *state, bool skip_ip) {
   for (u64 i = 0; i < ARRAY_COUNT(s_print_regs); ++i) {
     struct reg reg = {s_print_regs[i], REG_MODE_X};
     if (state->regs[reg.type] != 0) {
@@ -166,9 +172,13 @@ void print_state_registers(const struct state *state) {
     }
   }
 
+  if (!skip_ip) {
+    printf("      ip: 0x%04x (%u)\n", state->ip, state->ip);
+  }
+
   bool should_print_flags_reg = false;
 
-  for (u64 i = 0; i < FLAGS_BIT_COUNT; ++i) {
+  for (u64 i = 0; i < FLAGS_COUNT; ++i) {
     if (state->flags_reg.bits[i] != 0) {
       should_print_flags_reg = true;
       break;
@@ -180,4 +190,5 @@ void print_state_registers(const struct state *state) {
     print_flags_reg(&state->flags_reg);
     printf("\n");
   }
+
 }

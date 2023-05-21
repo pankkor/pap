@@ -117,7 +117,7 @@ enum instr_type {
   INSTR_TEST,
   INSTR_JE,
   INSTR_JL,
-  INSTR_JLE,
+  INSTR_JNG,
   INSTR_JB,
   INSTR_JBE,
   INSTR_JP,

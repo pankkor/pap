@@ -23,10 +23,10 @@ static FORCE_INLINE bool calc_parity(u8 v) {
 
 void calc_flags_reg(struct flags_reg *out_fr, u32 res_masked, u32 res_unmasked,
     u32 sign_mask) {
-  out_fr->bits[FLAGS_BIT_CARRY]   = ((res_unmasked & (sign_mask << 1)) != 0);
-  out_fr->bits[FLAGS_BIT_PARITY]  = calc_parity(res_masked);
-  out_fr->bits[FLAGS_BIT_ZERO]    = res_masked == 0;
-  out_fr->bits[FLAGS_BIT_SIGN]    = (res_masked & sign_mask) != 0;
+  out_fr->bits[FLAGS_CARRY]   = ((res_unmasked & (sign_mask << 1)) != 0);
+  out_fr->bits[FLAGS_PARITY]  = calc_parity(res_masked);
+  out_fr->bits[FLAGS_ZERO]    = res_masked == 0;
+  out_fr->bits[FLAGS_SIGN]    = (res_masked & sign_mask) != 0;
 }
 
 u16 load_mem(struct mem mem) {
@@ -58,7 +58,8 @@ struct mem reg_mode_to_offset_size(enum reg_mode m) {
 
 u16 load_op(struct operand op, struct state *state) {
   switch(op.type) {
-    case OP_NONE: return 0;
+    case OP_NONE:
+      return 0;
 
     case OP_REG: {
       struct reg reg = op.reg;
@@ -70,14 +71,20 @@ u16 load_op(struct operand op, struct state *state) {
     case OP_DATA:
       return op.data;
 
-    default: assert("unhandled type" || op.type);
+    case OP_IP_INC:
+      return op.ip_inc;
+
+    default:
+      assert("unhandled type" || op.type);
+      return 0;
   }
   return 0;
 }
 
 struct mem op_to_dst(struct operand op, struct state *state) {
   switch(op.type) {
-    case OP_NONE: return (struct mem){0};
+    case OP_NONE:
+      return (struct mem){0};
 
     case OP_REG: {
       struct reg reg = op.reg;
@@ -88,9 +95,20 @@ struct mem op_to_dst(struct operand op, struct state *state) {
 
     case OP_DATA:
       assert(0 && "Can't convert OP_DATA to memory");
-    default: assert("unhandled type" || op.type);
+      break;
+
+    default:
+      assert("unhandled type" || op.type);
+      break;
   }
   return (struct mem){0};
+}
+
+void cond_jump(struct state *state, const struct instr *instr, bool cond) {
+  if (cond) {
+    i16 ip_inc = load_op(instr->ops[0], state);
+    state->ip += ip_inc;
+  }
 }
 
 struct state state_simulate_instr(const struct state *state,
@@ -98,6 +116,9 @@ struct state state_simulate_instr(const struct state *state,
   assert(instr->type != INSTR_UNKNOWN);
 
   struct state new_state = *state;
+  new_state.ip += instr->size;
+
+  u8 *flags = new_state.flags_reg.bits; // for readability only
 
   switch(instr->type) {
     case INSTR_MOV: {
@@ -117,10 +138,8 @@ struct state state_simulate_instr(const struct state *state,
       u32 res_unmasked = (u32)v0 + v1;
 
       calc_flags_reg(&new_state.flags_reg, res, res_unmasked, sign_mask);
-      new_state.flags_reg.bits[FLAGS_BIT_AUXILIARY_CARRY] =
-        (((v0 & 0x0F) + (v1 & 0x0F)) & 0x10) != 0;
-      new_state.flags_reg.bits[FLAGS_BIT_OVERFLOW] =
-        (~(v0 ^ v1) & (v0 ^ res) & sign_mask) != 0;
+      flags[FLAGS_AUXILIARY_CARRY] = (((v0 & 0x0F) + (v1 & 0x0F)) & 0x10) != 0;
+      flags[FLAGS_OVERFLOW] = (~(v0 ^ v1) & (v0 ^ res) & sign_mask) != 0;
 
       store_mem(dst, res);
     } break;
@@ -136,10 +155,8 @@ struct state state_simulate_instr(const struct state *state,
       u32 res_unmasked = (u32)v0 - v1;
 
       calc_flags_reg(&new_state.flags_reg, res, res_unmasked, sign_mask);
-      new_state.flags_reg.bits[FLAGS_BIT_AUXILIARY_CARRY] =
-        (((v0 & 0x0F) - (v1 & 0x0F)) & 0x10) != 0;
-      new_state.flags_reg.bits[FLAGS_BIT_OVERFLOW] =
-        ((v0 ^ v1) & (v0 ^ res) & sign_mask) != 0;
+      flags[FLAGS_AUXILIARY_CARRY] = (((v0 & 0x0F) - (v1 & 0x0F)) & 0x10) != 0;
+      flags[FLAGS_OVERFLOW] = ((v0 ^ v1) & (v0 ^ res) & sign_mask) != 0;
 
       store_mem(dst, res);
     } break;
@@ -154,17 +171,102 @@ struct state state_simulate_instr(const struct state *state,
       u32 res_unmasked = (u32)v0 - v1;
 
       calc_flags_reg(&new_state.flags_reg, res, res_unmasked, sign_mask);
-      new_state.flags_reg.bits[FLAGS_BIT_AUXILIARY_CARRY] =
-        (((v0 & 0x0F) - (v1 & 0x0F)) & 0x10) != 0;
-      new_state.flags_reg.bits[FLAGS_BIT_OVERFLOW] =
-        ((v0 ^ v1) & (v0 ^ res) & sign_mask) != 0;
+      flags[FLAGS_AUXILIARY_CARRY] = (((v0 & 0x0F) - (v1 & 0x0F)) & 0x10) != 0;
+      flags[FLAGS_OVERFLOW] = ((v0 ^ v1) & (v0 ^ res) & sign_mask) != 0;
+    } break;
+
+    // Jumps
+    // above  and below - relationship of two unsinged values
+    // grater and less  - relationship of two signed values
+    case INSTR_JBE: {
+      cond_jump(&new_state, instr, flags[FLAGS_CARRY] && flags[FLAGS_ZERO]);
+    } break;
+
+    case INSTR_JNBE: {
+      cond_jump(&new_state, instr, !flags[FLAGS_CARRY] && !flags[FLAGS_ZERO]);
+    } break;
+
+    case INSTR_JB: {
+      cond_jump(&new_state, instr, flags[FLAGS_CARRY]);
+    } break;
+
+    case INSTR_JNB: {
+      cond_jump(&new_state, instr, !flags[FLAGS_CARRY]);
+    } break;
+
+    case INSTR_JE: {
+      cond_jump(&new_state, instr, flags[FLAGS_ZERO]);
+    } break;
+
+    case INSTR_JNE: {
+      cond_jump(&new_state, instr, !flags[FLAGS_ZERO]);
+    } break;
+
+    case INSTR_JG: {
+      cond_jump(&new_state, instr,
+          !flags[FLAGS_ZERO] && flags[FLAGS_SIGN] == flags[FLAGS_OVERFLOW]);
+    } break;
+
+    case INSTR_JNG: {
+      cond_jump(&new_state, instr,
+          flags[FLAGS_ZERO] && flags[FLAGS_SIGN] != flags[FLAGS_OVERFLOW]);
+    } break;
+
+    case INSTR_JL: {
+      cond_jump(&new_state, instr, flags[FLAGS_SIGN] != flags[FLAGS_OVERFLOW]);
+    } break;
+
+    case INSTR_JNL: {
+      cond_jump(&new_state, instr, flags[FLAGS_SIGN] == flags[FLAGS_OVERFLOW]);
+    } break;
+
+    case INSTR_JO: {
+      cond_jump(&new_state, instr, flags[FLAGS_OVERFLOW]);
+    } break;
+
+    case INSTR_JNO: {
+      cond_jump(&new_state, instr, !flags[FLAGS_OVERFLOW]);
+    } break;
+
+    case INSTR_JP: {
+      cond_jump(&new_state, instr, flags[FLAGS_PARITY]);
+    } break;
+
+    case INSTR_JNP: {
+      cond_jump(&new_state, instr, !flags[FLAGS_PARITY]);
+    } break;
+
+    case INSTR_JS: {
+      cond_jump(&new_state, instr, flags[FLAGS_SIGN]);
+    } break;
+
+    case INSTR_JNS: {
+      cond_jump(&new_state, instr, !flags[FLAGS_SIGN]);
+    } break;
+
+    case INSTR_JCXZ: {
+      cond_jump(&new_state, instr, !new_state.regs[REG_C]);
+    } break;
+
+    case INSTR_LOOP: {
+      --new_state.regs[REG_C];
+      cond_jump(&new_state, instr, new_state.regs[REG_C]);
+    } break;
+
+    case INSTR_LOOPZ: {
+      --new_state.regs[REG_C];
+      cond_jump(&new_state, instr, new_state.regs[REG_C] && flags[FLAGS_ZERO]);
+    } break;
+
+    case INSTR_LOOPNZ: {
+      --new_state.regs[REG_C];
+      cond_jump(&new_state, instr, new_state.regs[REG_C] && !flags[FLAGS_ZERO]);
     } break;
 
     default:
       fprintf(stderr,
           "Simulation error: unhandled instruction '%s' of type %d\n",
           instr->str, instr->type);
-
   }
 
   return new_state;

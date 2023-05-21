@@ -11,26 +11,28 @@
 ; ========================================================================
 
 ; ========================================================================
-; LISTING 47
+; LISTING 50
 ; ========================================================================
 
 bits 16
 
-add bx, 30000
-add bx, 10000
-sub bx, 5000
-sub bx, 5000
+mov ax, 10
+mov bx, 10
+mov cx, 10
 
-mov bx, 1
-mov cx, 100
-add bx, cx
+label_0:
+cmp bx, cx
+je label_1
 
-mov dx, 10
-sub cx, dx
+add ax, 1
+jp label_2
 
-add bx, 40000
-add cx, -90
+label_1:
+sub bx, 5
+jb label_3
 
-mov sp, 99
-mov bp, 98
-cmp bp, sp
+label_2:
+sub cx, 2
+
+label_3:
+loopnz label_0

@@ -74,10 +74,20 @@ if [ $sim86_simulate -gt 0 ]; then
     bin_in="build/$basename_wo_ext"
     sim_out="build/$basename_wo_ext.out.txt"
 
+    # Casey's listing_0048 onwards print IP register simulation results.
+    # For listing before 0048 provide a special argument to sim86 binary
+    # in order to skip printing IP register changes
+    args=
+    case "$basename" in
+      listing_0043_*|listing_0044_*|listing_0045_*|listing_0046_*|listing_0047_*)
+        args=simulate-print-no-ip
+        ;;
+    esac
+
     echo "• $asm_in"
     (
       nasm "$asm_in" -o "$bin_in" || exit 1
-      build/sim86 "$bin_in" > "$sim_out" || exit 1
+      build/sim86 $args "$bin_in" > "$sim_out" || exit 1
       diff -w "$sim_in" "$sim_out" > /dev/null || exit 1
     ) && echo '  ✅ passed' || {
       echo '\n––– Diff –––'
