@@ -71,7 +71,8 @@ int decode(struct stream *s) {
   return 1;
 }
 
-int simulate(struct stream *s, bool print_no_ip) {
+int simulate(struct stream *s, bool print_no_ip,
+    const char *memory_dump_filename) {
   u8 *sbegin = s->data;
 
   struct state state = {0};
@@ -95,35 +96,92 @@ int simulate(struct stream *s, bool print_no_ip) {
   printf("\nFinal registers:\n");
   print_state_registers(&state, print_no_ip);
   printf("\n");
+
+  if (memory_dump_filename) {
+    int dump_fd = open(memory_dump_filename, O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR);
+
+    if (dump_fd == -1) {
+      fprintf(stderr, "Error: failed to open memory dump file '%s': ",
+          memory_dump_filename);
+      perror("");
+      return 0;
+    }
+
+    if (write(dump_fd, state.memory, MEMORY_SIZE) != MEMORY_SIZE) {
+      fprintf(stderr, "Error: failed to write memory dump file '%s': ",
+          memory_dump_filename);
+      perror("");
+      return 0;
+    }
+  }
+
   return 1;
 }
 
-int main(int argc, char **argv) {
-  if (argc < 2) {
+void print_usage() {
     fprintf(stderr,
-        "Usage:\nsim86 [COMMAND] <input_binary_file>\n"
+        "Usage:\nsim86 <COMMAND> [OPTIONS] <input_binary_file>\n"
         "\n"
         "COMMAND\n"
         "    simulate             - simulate executing binary file and print\n"
         "                           results to stdout (default).\n"
-        "    simulate-print-no-ip - same as 'simulate', but doesn't print\n"
-        "                           chagnes to IP register.\n"
         "    decode               - decode binary file to stdout using\n"
         "                           NASM syntax.\n"
+        "\n"
+        "OPTIONS\n"
+        "'simualte' command options\n"
+        "    --print-no-ip        - same as 'simulate', but doesn't print\n"
+        "                           chagnes to IP register.\n"
+        "    --dump <filename>    - after simulation has finished dump the\n"
+        "                           content of memory to the file.\n"
         );
+}
+
+int main(int argc, char **argv) {
+  if (argc < 2) {
+    print_usage();
     return 1;
   }
 
-  enum {SIMULATE, SIMULATE_PRINT_NO_IP, DECODE} command = SIMULATE;
-  if (argc == 3) {
-    if (strcmp(argv[1], "decode") == 0) {
-      command = DECODE;
-    } else if (strcmp(argv[1], "simulate-print-no-ip") == 0) {
-      command = SIMULATE_PRINT_NO_IP;
+  enum {SIMULATE, DECODE} command = SIMULATE;
+  if (strcmp(argv[1], "decode") == 0) {
+    command = DECODE;
+  } else if (strcmp(argv[1], "simulate") == 0) {
+    command = SIMULATE;
+  } else {
+    fprintf(stderr, "Error: unknown COMMAND '%s'\n", argv[1]);
+    print_usage();
+    return 1;
+  }
+
+  // options
+  bool print_no_ip = false;
+  const char *memory_dump_filename = NULL;
+
+  int filename_argc = argc - 1;
+  if (command == SIMULATE) {
+    int cur_argc = 2;
+    while (cur_argc < filename_argc) {
+      if (strcmp(argv[cur_argc], "--print-no-ip") == 0) {
+        print_no_ip = true;
+      } else if (strcmp(argv[cur_argc], "--dump") == 0) {
+        if (++cur_argc < filename_argc) {
+          memory_dump_filename = argv[cur_argc];
+        } else {
+          fprintf(stderr, "Error: '--dump' option requires a filename arg\n");
+          print_usage();
+          return 1;
+        }
+      } else {
+        fprintf(stderr, "Error: unrecognized option '%s'\n", argv[cur_argc]);
+        print_usage();
+        return 1;
+      }
+      ++cur_argc;
     }
   }
 
-  const char *filepath = argv[argc - 1];
+  const char *filepath = argv[filename_argc];
   int fd = open(filepath, O_RDONLY);
   if (fd == -1) {
     fprintf(stderr, "Error: failed to open file '%s': ", filepath);
@@ -150,7 +208,7 @@ int main(int argc, char **argv) {
     struct sv filename_sv = basename(filepath);
     printf("--- test\\%.*s execution ---\n",
         (i32)(filename_sv.end - filename_sv.begin), filename_sv.begin);
-    res = simulate(&s, command == SIMULATE_PRINT_NO_IP);
+    res = simulate(&s, print_no_ip, memory_dump_filename);
   }
 
   munmap(file_data, file_size);

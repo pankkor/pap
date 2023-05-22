@@ -80,14 +80,14 @@ if [ $sim86_simulate -gt 0 ]; then
     args=
     case "$basename" in
       listing_0043_*|listing_0044_*|listing_0045_*|listing_0046_*|listing_0047_*)
-        args=simulate-print-no-ip
+        args='--print-no-ip'
         ;;
     esac
 
     echo "• $asm_in"
     (
       nasm "$asm_in" -o "$bin_in" || exit 1
-      build/sim86 $args "$bin_in" > "$sim_out" || exit 1
+      build/sim86 simulate $args "$bin_in" > "$sim_out" || exit 1
       diff -w "$sim_in" "$sim_out" > /dev/null || exit 1
     ) && echo '  ✅ passed' || {
       echo '\n––– Diff –––'
