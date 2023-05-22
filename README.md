@@ -1,5 +1,6 @@
 ## Performance-Aware-Programming Course Playground
 https://www.computerenhance.com/p/table-of-contents
+
 https://github.com/cmuratori/computer_enhance
 
 ### Supported platforms
