@@ -89,7 +89,7 @@ u16 load_op(struct operand op, struct state *state, bool w) {
 
       switch(ea.type) {
         case EA_DIRECT:
-          mem.ptr = state->memory + ea.direct_addr;
+          mem.ptr = state->memory->data + ea.direct_addr % MEMORY_SIZE;
           return load_mem(mem);
 
         case EA_COMPUTE: {
@@ -102,7 +102,8 @@ u16 load_op(struct operand op, struct state *state, bool w) {
           if (ea.compute_addr.index_reg) {
             index = load_reg(*ea.compute_addr.index_reg, state);
           }
-          mem.ptr = state->memory + base + index + displ;
+          assert(base + index + displ < MEMORY_SIZE);
+          mem.ptr = state->memory->data + (base + index + displ) % MEMORY_SIZE;
           return load_mem(mem);
         }
       }
@@ -146,7 +147,7 @@ struct mem op_to_dst(struct operand op, struct state *state, bool w) {
 
       switch(ea.type) {
         case EA_DIRECT:
-          mem.ptr = state->memory + ea.direct_addr;
+          mem.ptr = state->memory->data + ea.direct_addr % MEMORY_SIZE;
           return mem;
 
         case EA_COMPUTE: {
@@ -159,7 +160,7 @@ struct mem op_to_dst(struct operand op, struct state *state, bool w) {
           if (ea.compute_addr.index_reg) {
             index = load_reg(*ea.compute_addr.index_reg, state);
           }
-          mem.ptr = state->memory + base + index + displ;
+          mem.ptr = state->memory->data + (base + index + displ) % MEMORY_SIZE;
           return mem;
         }
       }

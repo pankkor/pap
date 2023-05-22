@@ -17,11 +17,7 @@
 #include "sim86_simulate.h"
 #include "sim86_stream.h"
 
-#include <unistd.h>     // lseek
-#include <fcntl.h>      // open
-#include <sys/types.h>  // legacy
-#include <sys/mman.h>   // mmap munmap
-#include <stdio.h>      // printf
+#include <stdio.h>      // printf fprints fopen fread fseek ftell
 #include <string.h>     // strcmp
 
 // string view
@@ -53,40 +49,102 @@ struct sv basename(const char *path) {
   return sv.end - sv.begin > 0 ? sv : prev_sv;
 }
 
-int decode(struct stream *s) {
-  printf("bits 16\n");
-  u8 *sbegin = s->data;
+u64 file_write(const char *filepath, u8 *buf, u64 buf_size) {
+  u64 written = 0;
 
-  while (s->data < s->end) {
-    struct instr instr = decode_next_instr(s);
+  FILE *f = fopen(filepath, "wb");
+  if (!f) {
+    perror("Error: fopen() failed");
+    return written;
+  }
+
+  written = fwrite(buf, 1, buf_size, f);
+  if (written != buf_size) {
+    perror("Error: fwrite() failed");
+  }
+
+  fclose(f);
+  return written;
+}
+
+u64 file_read(const char *filepath, u8 *buf, u64 buf_size) {
+  FILE *f = fopen(filepath, "rb");
+  if (!f) {
+    perror("Error: fopen() failed");
+    goto file_read_failed;
+  }
+
+  if (fseek(f, 0, SEEK_END)) {
+    perror("Error: fseek() failed");
+    goto file_read_failed;
+  }
+
+  u64 file_size = ftell(f);
+  if (file_size > buf_size) {
+    fprintf(stderr,
+        "Error: binary file is too big to be loaded into the buffer. File size:"
+        "%ld bytes, buffer size: %lu bytes\n", file_size, buf_size);
+    goto file_read_failed;
+  }
+
+  if (fseek(f, 0, SEEK_SET)) {
+    perror("Error: fseek() failed");
+    goto file_read_failed;
+  }
+
+  if (fread(buf, 1, file_size, f) != file_size) {
+    perror("Error: fread() failed");
+    goto file_read_failed;
+  }
+
+  fclose(f);
+  return file_size;
+
+file_read_failed:
+  if (f) {
+    fclose(f);
+  }
+  return 0;
+}
+
+bool decode(struct memory *memory, u64 file_size) {
+  struct stream s = {memory->data, memory->data + file_size};
+  u8 *sbegin = s.data;
+
+  printf("bits 16\n");
+
+  while (s.data < s.end) {
+    struct instr instr = decode_next_instr(&s);
     if (!instr.str) {
       fprintf(stderr, "Error: unsupported instruction at byte number %ld\n",
-          s->data - sbegin);
-      return 0;
+          s.data - sbegin);
+      return false;
     }
 
     print_instr(&instr);
     printf("\n");
   }
-  return 1;
+  return true;
 }
 
-int simulate(struct stream *s, bool print_no_ip,
+bool simulate(struct memory *memory, u64 file_size, bool print_no_ip,
     const char *memory_dump_filename) {
-  u8 *sbegin = s->data;
 
-  struct state state = {0};
-  while (s->data < s->end) {
-    struct instr instr = decode_next_instr(s);
+  struct stream s = {memory->data, memory->data + file_size};
+  struct state state = {.memory = memory};
+
+  u8 *sbegin = s.data;
+  while (s.data < s.end) {
+    struct instr instr = decode_next_instr(&s);
     if (!instr.str) {
       fprintf(stderr, "Error: unsupported instruction at byte number %ld\n",
-          s->data - sbegin);
-      return 0;
+          s.data - sbegin);
+      return false;
     }
 
     struct state old_state = state;
     state = state_simulate_instr(&old_state, &instr);
-    s->data = sbegin + state.ip; // read next instruction based on simulated IP
+    s.data = sbegin + state.ip; // read next instruction based on simulated IP
 
     print_instr(&instr);
     printf(" ; ");
@@ -98,43 +156,34 @@ int simulate(struct stream *s, bool print_no_ip,
   printf("\n");
 
   if (memory_dump_filename) {
-    int dump_fd = open(memory_dump_filename, O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR);
-
-    if (dump_fd == -1) {
-      fprintf(stderr, "Error: failed to open memory dump file '%s': ",
+    if (file_write(memory_dump_filename, state.memory->data, MEMORY_SIZE)
+        != MEMORY_SIZE) {
+      fprintf(stderr, "Error: failed to write memory dump file '%s'\n",
           memory_dump_filename);
-      perror("");
-      return 0;
-    }
-
-    if (write(dump_fd, state.memory, MEMORY_SIZE) != MEMORY_SIZE) {
-      fprintf(stderr, "Error: failed to write memory dump file '%s': ",
-          memory_dump_filename);
-      perror("");
-      return 0;
+      return false;
     }
   }
 
-  return 1;
+  return true;
 }
 
 void print_usage() {
-    fprintf(stderr,
-        "Usage:\nsim86 <COMMAND> [OPTIONS] <input_binary_file>\n"
-        "\n"
-        "COMMAND\n"
-        "    simulate             - simulate executing binary file and print\n"
-        "                           results to stdout (default).\n"
-        "    decode               - decode binary file to stdout using\n"
-        "                           NASM syntax.\n"
-        "\n"
-        "OPTIONS\n"
-        "'simualte' command options\n"
-        "    --print-no-ip        - same as 'simulate', but doesn't print\n"
-        "                           chagnes to IP register.\n"
-        "    --dump <filename>    - after simulation has finished dump the\n"
-        "                           content of memory to the file.\n"
-        );
+  fprintf(stderr,
+      "Usage:\nsim86 <COMMAND> [OPTIONS] <input_binary_file>\n"
+      "\n"
+      "COMMAND\n"
+      "    simulate             - simulate executing binary file and print\n"
+      "                           results to stdout (default).\n"
+      "    decode               - decode binary file to stdout using\n"
+      "                           NASM syntax.\n"
+      "\n"
+      "OPTIONS\n"
+      "'simualte' command options\n"
+      "    --print-no-ip        - same as 'simulate', but doesn't print\n"
+      "                           chagnes to IP register.\n"
+      "    --dump <filename>    - after simulation has finished dump the\n"
+      "                           content of memory to the file.\n"
+      );
 }
 
 int main(int argc, char **argv) {
@@ -182,35 +231,25 @@ int main(int argc, char **argv) {
   }
 
   const char *filepath = argv[filename_argc];
-  int fd = open(filepath, O_RDONLY);
-  if (fd == -1) {
-    fprintf(stderr, "Error: failed to open file '%s': ", filepath);
-    perror("");
+
+  struct memory memory = {0};
+  u64 file_size = file_read(filepath, memory.data, MEMORY_SIZE);
+  if (!file_size) {
+    fprintf(stderr, "Error: failed to read contents of file '%s'\n", filepath);
     return 1;
   }
-
-  off_t file_size = lseek(fd, 0, SEEK_END);
-  u8 *file_data = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
-  close(fd);
-  if (file_data == MAP_FAILED) {
-    perror(file_size ? "Error: mmap failed" : "Error: mmap failed, empty file");
-    return 1;
-  }
-
-  struct stream s = {file_data, file_data + file_size};
 
   decode_build_index();
 
-  int res;
+  bool res;
   if (command == DECODE) {
-    res = decode(&s);
+    res = decode(&memory, file_size);
   } else {
     struct sv filename_sv = basename(filepath);
     printf("--- test\\%.*s execution ---\n",
         (i32)(filename_sv.end - filename_sv.begin), filename_sv.begin);
-    res = simulate(&s, print_no_ip, memory_dump_filename);
+    res = simulate(&memory, file_size, print_no_ip, memory_dump_filename);
   }
 
-  munmap(file_data, file_size);
   return res ? 0 : 1;
 }
