@@ -1,5 +1,4 @@
-#include "sim86_types.h"
-#include "sim86_instr.h"
+#include "sim86_decode.h"
 #include "sim86_stream.h"
 
 #include <assert.h>     // assert
@@ -331,7 +330,7 @@ const struct instr_table_row s_instr_rows[] = {
 
 static const struct instr_table_row *s_b0_to_row[256] = {0};
 
-void decode_build_index() {
+void decode_build_index(void) {
   u8 b0 = 0;
   do {
     const struct instr_table_row *found_row = NULL;

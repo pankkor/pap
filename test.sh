@@ -78,16 +78,48 @@ if [ $sim86_simulate -gt 0 ]; then
     # For listing before 0048 provide a special argument to sim86 binary
     # in order to skip printing IP register changes
     args=
+    clocks=0
     case "$basename" in
       listing_0043_*|listing_0044_*|listing_0045_*|listing_0046_*|listing_0047_*)
         args='--print-no-ip'
+        ;;
+      listing_0056_*|listing_0057_*|listing_0058_*|listing_0059_*|listing_0060_*\
+        |listing_0061_*|listing_0062_*|listing_0063*|listing_0064_*)
+        clocks=1
         ;;
     esac
 
     echo "• $asm_in"
     (
       nasm "$asm_in" -o "$bin_in" || exit 1
-      build/sim86 simulate $args "$bin_in" > "$sim_out" || exit 1
+      if [ "$clocks" -eq 0 ]; then
+        echo "--- test\\$basename_wo_ext execution ---" > "$sim_out" || exit 1
+        build/sim86 simulate $args "$bin_in" >> "$sim_out" || exit 1
+      else
+        (
+          echo '**************'
+          echo '**** 8086 ****'
+          echo '**************'
+          echo
+          echo 'WARNING: Clocks reported by this utility are strictly from the 8086 manual.
+They will be inaccurate, both because the manual clocks are estimates, and because
+some of the entries in the manual look highly suspicious and are probably typos.'
+          echo
+          echo "--- test\\$basename_wo_ext execution ---"
+          build/sim86 simulate $args --print-clocks-8086 "$bin_in" || exit 1
+          echo
+          echo '**************'
+          echo '**** 8088 ****'
+          echo '**************'
+          echo
+          echo 'WARNING: Clocks reported by this utility are strictly from the 8086 manual.
+They will be inaccurate, both because the manual clocks are estimates, and because
+some of the entries in the manual look highly suspicious and are probably typos.'
+          echo
+          echo "--- test\\$basename_wo_ext execution ---"
+          build/sim86 simulate $args --print-clocks-8088 "$bin_in" || exit 1
+        ) > "$sim_out" || exit 1
+      fi
       diff -w "$sim_in" "$sim_out" > /dev/null || exit 1
     ) && echo '  ✅ passed' || {
       echo '\n––– Diff –––'

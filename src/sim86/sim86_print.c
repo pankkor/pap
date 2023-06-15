@@ -1,4 +1,5 @@
 #include "sim86_types.h"
+#include "sim86_clocks.h"
 #include "sim86_instr.h"
 #include "sim86_simulate.h"
 
@@ -191,4 +192,19 @@ void print_state_registers(const struct state *state, bool skip_ip) {
     printf("\n");
   }
 
+}
+
+void print_clocks(struct clocks clocks, u32 total) {
+  printf("Clocks: %+d = %d", clocks.base + clocks.ea + clocks.p, total);
+  if (clocks.ea || clocks.p) {
+    printf("(%u", clocks.base);
+    if (clocks.ea) {
+      printf(" + %uea", clocks.ea);
+    }
+    if (clocks.p) {
+      printf(" + %up", clocks.p);
+    }
+    printf(")");
+  }
+  printf(" | ");
 }

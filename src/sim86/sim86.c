@@ -4,14 +4,16 @@
 // Part 1
 // 8086 instructions decode
 
-// unity build begin
+// Begin unity build
+#include "sim86_clocks.c"
 #include "sim86_decode.c"
 #include "sim86_instr.c"
 #include "sim86_print.c"
 #include "sim86_simulate.c"
 #include "sim86_stream.c"
-// unity build end
+// End unity build
 
+#include "sim86_clocks.h"
 #include "sim86_decode.h"
 #include "sim86_print.h"
 #include "sim86_simulate.h"
@@ -19,35 +21,6 @@
 
 #include <stdio.h>      // printf fprints fopen fread fseek ftell
 #include <string.h>     // strcmp
-
-// string view
-struct sv {
-  const char *begin;
-  const char *end;
-};
-
-const char *s_dot = ".";
-
-// Custom basename returning string view
-struct sv basename(const char *path) {
-  if (*path == 0) {
-    return (struct sv){s_dot, s_dot + 1};
-  }
-
-  struct sv prev_sv = {path, path + 1};
-  struct sv sv = {path, path + 1};
-
-  do {
-    if (*path == '\\' || *path == '/') {
-      prev_sv = sv;
-      sv.begin = path + 1;
-    }
-    sv.end = ++path;
-  } while (*path != 0);
-  sv.end = path;
-
-  return sv.end - sv.begin > 0 ? sv : prev_sv;
-}
 
 u64 file_write(const char *filepath, u8 *buf, u64 buf_size) {
   u64 written = 0;
@@ -127,33 +100,48 @@ bool decode(struct memory *memory, u64 file_size) {
   return true;
 }
 
+enum opt_clocks {
+  OPT_CLOCKS_NONE,
+  OPT_CLOCKS_8086,
+  OPT_CLOCKS_8088
+};
+
 bool simulate(struct memory *memory, u64 file_size, bool print_no_ip,
-    const char *memory_dump_filename) {
+    const char *memory_dump_filename, enum opt_clocks opt_clocks) {
+    struct stream s = {memory->data, memory->data + file_size};
+    struct state state = {.memory = memory};
 
-  struct stream s = {memory->data, memory->data + file_size};
-  struct state state = {.memory = memory};
+    u32 clocks_total = 0;
 
-  u8 *sbegin = s.data;
-  while (s.data < s.end) {
-    struct instr instr = decode_next_instr(&s);
-    if (!instr.str) {
-      fprintf(stderr, "Error: unsupported instruction at byte number %ld\n",
-          s.data - sbegin);
-      return false;
+    u8 *sbegin = s.data;
+    while (s.data < s.end) {
+      struct instr instr = decode_next_instr(&s);
+      if (!instr.str) {
+        fprintf(stderr, "Error: unsupported instruction at byte number %ld\n",
+            s.data - sbegin);
+        return false;
+      }
+
+      struct state old_state = state;
+      state = state_simulate_instr(&old_state, &instr);
+      s.data = sbegin + state.ip; // read next instruction based on simulated IP
+
+      struct clocks clocks = calc_clocks(&instr, opt_clocks == OPT_CLOCKS_8088);
+      clocks_total += clocks.base + clocks.ea + clocks.p;
+
+      print_instr(&instr);
+      printf(" ; ");
+
+      if (opt_clocks != OPT_CLOCKS_NONE) {
+        print_clocks(clocks, clocks_total);
+      }
+
+      print_state_diff(&old_state, &state, print_no_ip);
+      printf("\n");
     }
-
-    struct state old_state = state;
-    state = state_simulate_instr(&old_state, &instr);
-    s.data = sbegin + state.ip; // read next instruction based on simulated IP
-
-    print_instr(&instr);
-    printf(" ; ");
-    print_state_diff(&old_state, &state, print_no_ip);
+    printf("\nFinal registers:\n");
+    print_state_registers(&state, print_no_ip);
     printf("\n");
-  }
-  printf("\nFinal registers:\n");
-  print_state_registers(&state, print_no_ip);
-  printf("\n");
 
   if (memory_dump_filename) {
     if (file_write(memory_dump_filename, state.memory->data, MEMORY_SIZE)
@@ -167,7 +155,7 @@ bool simulate(struct memory *memory, u64 file_size, bool print_no_ip,
   return true;
 }
 
-void print_usage() {
+void print_usage(void) {
   fprintf(stderr,
       "Usage:\nsim86 <COMMAND> [OPTIONS] <input_binary_file>\n"
       "\n"
@@ -181,6 +169,8 @@ void print_usage() {
       "'simualte' command options\n"
       "    --print-no-ip        - same as 'simulate', but doesn't print\n"
       "                           chagnes to IP register.\n"
+      "    --print-clocks-8086  - print cycle count estimation for 8086\n"
+      "    --print-clocks-8088  - print cycle count estimation for 8088\n"
       "    --dump <filename>    - after simulation has finished dump the\n"
       "                           content of memory to the file.\n"
       );
@@ -206,6 +196,7 @@ int main(int argc, char **argv) {
   // options
   bool print_no_ip = false;
   const char *memory_dump_filename = NULL;
+  enum opt_clocks opt_clocks = OPT_CLOCKS_NONE;
 
   int filename_argc = argc - 1;
   if (command == SIMULATE) {
@@ -213,6 +204,10 @@ int main(int argc, char **argv) {
     while (cur_argc < filename_argc) {
       if (strcmp(argv[cur_argc], "--print-no-ip") == 0) {
         print_no_ip = true;
+      } else if (strcmp(argv[cur_argc], "--print-clocks-8086") == 0) {
+        opt_clocks = OPT_CLOCKS_8086;
+      } else if (strcmp(argv[cur_argc], "--print-clocks-8088") == 0) {
+        opt_clocks = OPT_CLOCKS_8088;
       } else if (strcmp(argv[cur_argc], "--dump") == 0) {
         if (++cur_argc < filename_argc) {
           memory_dump_filename = argv[cur_argc];
@@ -245,10 +240,8 @@ int main(int argc, char **argv) {
   if (command == DECODE) {
     res = decode(&memory, file_size);
   } else {
-    struct sv filename_sv = basename(filepath);
-    printf("--- test\\%.*s execution ---\n",
-        (i32)(filename_sv.end - filename_sv.begin), filename_sv.begin);
-    res = simulate(&memory, file_size, print_no_ip, memory_dump_filename);
+    res = simulate(
+        &memory, file_size, print_no_ip, memory_dump_filename, opt_clocks);
   }
 
   return res ? 0 : 1;

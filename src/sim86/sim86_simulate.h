@@ -33,4 +33,5 @@ struct state {
   u16 ip;
 };
 
-struct state state_simulate_instr(const struct state *state, const struct instr *instr);
+struct state state_simulate_instr(const struct state *state,
+    const struct instr *instr);
