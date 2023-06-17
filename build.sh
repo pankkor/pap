@@ -9,6 +9,8 @@ cc_asm_flags="$cc_flags -S -fno-asynchronous-unwind-tables -fverbose-asm"
 srcs="
 src/sim86/sim86.c
 src/sum/sum.c
+src/harvestine/harvestine.c
+src/harvestine/estimate_cpu_timer_freq.c
 "
 
 for src in ${srcs}; do

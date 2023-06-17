@@ -1,25 +1,57 @@
 #!/bin/sh
 
 help="""
-Simple live coding evnironment.
-Requirements: 'entr' utility installed. Build directory: './build'
+Simple live coding evnironment.Runs selected test on every binary modification.
+Requirements:     'entr' utility installed.
+Build directory:  './build'
+
+Example:
+  live.sh --test sum
+Would watch ./build/sum for modifications using 'entr' and rerun sum test when
+it's modified.
 
 OPTIONS
   -h, --help
-  --build-and-test (sum|sim86_decode|sim86_simulate)
+  --test <test> [test] [test_options]
+
+TESTS
+  sim86_decode
+    Test 8086 instructions decode listings (see test.sh)
+
+  sim86_simulate
+    Test 8086 instructions simulate listings (see test.sh)
+
+  sum
+    Simple array sum benchmark.
+
+  estimate_cpu_timer_freq [time_to_run_ms]
+    Estimate cpu timer frequency.
+
+  gen_harvestine <out.json>
+    Generate harvestine distance json.
 """
+
+./build.sh
 
 case "$1" in
   -h | --help)
     echo "$help"
     ;;
-  --build-and-test)
+  --test)
     case "$2" in
       sum)
-        echo build/sum | entr -cs './build.sh && ./build/sum'
+        echo build/sum | entr -cs './build/sum'
+        ;;
+      estimate_cpu_timer_freq)
+        time_to_run_ms="${3:-1000}"
+        echo build/estimate_cpu_timer_freq \
+          | entr -cs "time ./build/estimate_cpu_timer_freq $time_to_run_ms"
+        ;;
+      harvestine)
+        echo build/harvestine | entr -cs './build/harvestine'
         ;;
       sim86_decode | sim86_simulate)
-        echo build/sim86|  entr -cs "./build.sh && ./test.sh $2"
+        echo build/sim86 | entr -cs "./test.sh $2"
         ;;
       *)
         echo "Error: unsupported target '$2'" >&2
