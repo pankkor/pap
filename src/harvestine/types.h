@@ -19,7 +19,7 @@ typedef i32             b32;
 #define UNLIKELY(x)     __builtin_expect((x), 0)
 #define FORCE_INLINE    inline __attribute__((always_inline))
 
-#define ARRAY_LEN(x)    (u64)(sizeof(x) / sizeof(x[0]))
+#define ARRAY_COUNT(x)    (u64)(sizeof(x) / sizeof(x[0]))
 
 #define SWAP(a, b)            \
   do {                        \

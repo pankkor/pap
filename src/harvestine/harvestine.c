@@ -2,37 +2,24 @@
 // https://www.computerenhance.com/p/table-of-contents
 //
 // Part 2
-// Harvestine distance
+// Harvestine distance input file generator
 
 // Begin unity build
 #include "timer.c"
+#include "calc_harvestine.c"
 // End unity build
+
+#include "calc_harvestine.h"
 
 #include "types.h"
 #include "timer.h"
 
-#include <stdio.h>      // printf fprints fopen fread fseek ftell
-#include <string.h>     // strcmp
+#include <stdio.h>      // printf fprintf fopen fread fseek ftell
+#include <stdlib.h>     // malloc
 
-u64 file_write(const char *filepath, u8 *buf, u64 buf_size) {
-  u64 written = 0;
+static u8 *alloc_buf_file_read(const char *filepath, u64 *out_buf_size) {
+  u8 *buf = 0;
 
-  FILE *f = fopen(filepath, "wb");
-  if (!f) {
-    perror("Error: fopen() failed");
-    return written;
-  }
-
-  written = fwrite(buf, 1, buf_size, f);
-  if (written != buf_size) {
-    perror("Error: fwrite() failed");
-  }
-
-  fclose(f);
-  return written;
-}
-
-u64 file_read(const char *filepath, u8 *buf, u64 buf_size) {
   FILE *f = fopen(filepath, "rb");
   if (!f) {
     perror("Error: fopen() failed");
@@ -45,15 +32,13 @@ u64 file_read(const char *filepath, u8 *buf, u64 buf_size) {
   }
 
   u64 file_size = ftell(f);
-  if (file_size > buf_size) {
-    fprintf(stderr,
-        "Error: binary file is too big to be loaded into the buffer. File size:"
-        "%ld bytes, buffer size: %lu bytes\n", file_size, buf_size);
+  if (fseek(f, 0, SEEK_SET)) {
+    perror("Error: fseek() failed");
     goto file_read_failed;
   }
 
-  if (fseek(f, 0, SEEK_SET)) {
-    perror("Error: fseek() failed");
+  buf = malloc(file_size);
+  if (!buf) {
     goto file_read_failed;
   }
 
@@ -61,18 +46,20 @@ u64 file_read(const char *filepath, u8 *buf, u64 buf_size) {
     perror("Error: fread() failed");
     goto file_read_failed;
   }
-
   fclose(f);
-  return file_size;
+
+  *out_buf_size = file_size;
+  return buf;
 
 file_read_failed:
   if (f) {
     fclose(f);
   }
+  free(buf);
   return 0;
 }
 
-void print_usage(void) {
+static void print_usage(void) {
   fprintf(stderr, "Usage:\nharvestine <input_file>\n");
 }
 
@@ -83,10 +70,12 @@ int main(int argc, char **argv) {
   }
 
   const char *filepath = argv[1];
-  (void)filepath;
+  u64 buf_size = 0;
+  u8 *buf = alloc_buf_file_read(filepath, &buf_size);
+  printf("READ %lu bytes\n--------\n%s\n-------------\n", buf_size, buf);
 
-  u64 os_time = read_os_timer();
-  (void)os_time;
+
+  // TODO predictive parse json
 
   return 0;
 }

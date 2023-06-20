@@ -12,9 +12,9 @@
 #include "timer.h"
 
 #include <stdio.h>      // printf
-#include <stdlib.h>     // atoi
+#include <stdlib.h>     // atol
 
-void print_usage(void) {
+static void print_usage(void) {
   fprintf(stderr, "Usage:\nestimate_cpu_timer_freq <time_to_run_ms>\n");
 }
 

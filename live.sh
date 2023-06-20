@@ -27,7 +27,7 @@ TESTS
   estimate_cpu_timer_freq [time_to_run_ms]
     Estimate cpu timer frequency.
 
-  gen_harvestine <out.json>
+  gen_harvestine <seed> <coord_pair_count>
     Generate harvestine distance json.
 """
 
@@ -47,8 +47,10 @@ case "$1" in
         echo build/estimate_cpu_timer_freq \
           | entr -cs "time ./build/estimate_cpu_timer_freq $time_to_run_ms"
         ;;
-      harvestine)
-        echo build/harvestine | entr -cs './build/harvestine'
+      gen_harvestine)
+        echo build/gen_harvestine \
+          | entr -cs "./build/gen_harvestine $3 $4 > build/harvestine_live.json\
+          2> build/harvestine_live.sum"
         ;;
       sim86_decode | sim86_simulate)
         echo build/sim86 | entr -cs "./test.sh $2"

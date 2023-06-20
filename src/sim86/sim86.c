@@ -19,7 +19,7 @@
 #include "sim86_simulate.h"
 #include "sim86_stream.h"
 
-#include <stdio.h>      // printf fprints fopen fread fseek ftell
+#include <stdio.h>      // printf fprintf fopen fread fwrite fseek ftell
 #include <string.h>     // strcmp
 
 u64 file_write(const char *filepath, u8 *buf, u64 buf_size) {
@@ -245,4 +245,5 @@ int main(int argc, char **argv) {
   }
 
   return res ? 0 : 1;
+
 }
