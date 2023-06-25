@@ -28,6 +28,13 @@ typedef i32             b32;
     (b) = tmp;                \
   } while(0)
 
+#define CLAMP(k, l, r) ({               \
+    __typeof__(k) k_ = (k);             \
+    __typeof__(l) l_ = (l);             \
+    __typeof__(r) r_ = (r);             \
+    k_ <= l_ ? l_ : k_ >= r_ ? r_ : k_; \
+})
+
 #define DSB(option)     __asm__ volatile ("dsb " #option : : : "memory")
 
 #define NO_OPT          __attribute__((optnone))

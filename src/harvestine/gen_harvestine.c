@@ -4,14 +4,8 @@
 // Part 2
 // Harvestine distance input file generator
 
-
-// Begin unity build
-#include "calc_harvestine.c"
-// End unity build
-
-#include "calc_harvestine.h"
-
 #include "types.h"
+#include "calc_harvestine.h"
 
 #include <stdio.h>      // printf fprintf fopen fwrite
 #include <stdlib.h>     // atol rand
@@ -58,7 +52,7 @@ int main(int argc, char **argv) {
     {rand_range(x_min, x_max), rand_range(y_min, y_max)},
   };
 
-  printf("{\"pairs\":[");
+  printf("{\n  \"pairs\": [\n");
 
   f64 sum = 0.0;
   if (coord_pair_count > 0) {
@@ -69,11 +63,13 @@ int main(int argc, char **argv) {
       f64 y0 = rand_range(y_min, y_max) + clusters[idx0][1];
       f64 x1 = rand_range(x_min, x_max) + clusters[idx1][0];
       f64 y1 = rand_range(y_min, y_max) + clusters[idx1][1];
-      printf("{\"x0\":%f,\"y0\":%f,\"x1\":%f,\"y1\":%f},", x0, y0, x1, y1);
 
-      sum += calc_harvestine(x0, y0, x1, y1, 6372.8);
+      sum += calc_harvestine(x0, y0, x1, y1, EARTH_RAD);
+      printf("    {\"x0\": %.17f,\"y0\": %.17f,\"x1\": %.17f,\"y1\": %.17f},\n",
+          x0, y0, x1, y1);
     }
 
+    // no comma at the end
     {
       i32 idx0 = rand() % CLUSTERS_COUNT;
       i32 idx1 = (idx0 + 1) % CLUSTERS_COUNT;
@@ -81,15 +77,16 @@ int main(int argc, char **argv) {
       f64 y0 = rand_range(y_min, y_max) + clusters[idx0][1];
       f64 x1 = rand_range(x_min, x_max) + clusters[idx1][0];
       f64 y1 = rand_range(y_min, y_max) + clusters[idx1][1];
-      printf("{\"x0\":%f,\"y0\":%f,\"x1\":%f,\"y1\":%f}", x0, y0, x1, y1);
 
-      sum += calc_harvestine(x0, y0, x1, y1, 6372.8);
+      sum += calc_harvestine(x0, y0, x1, y1, EARTH_RAD);
+      printf("    {\"x0\": %.17f,\"y0\": %.17f,\"x1\": %.17f,\"y1\": %.17f}\n",
+          x0, y0, x1, y1);
     }
   }
-  printf("]}\n");
+  printf("  ]\n}\n");
 
   // print harvestine distance sum to stderr
-  fprintf(stderr, "%f\n", sum);
+  fprintf(stderr, "%.17f\n", sum);
 
   return 0;
 }

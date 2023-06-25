@@ -2,6 +2,7 @@
 -Wall
 -Wextra
 -Wpedantic
+-Wno-gnu-statement-expression
 -mcpu=native
 -O0
 -g

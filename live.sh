@@ -29,6 +29,9 @@ TESTS
 
   gen_harvestine <seed> <coord_pair_count>
     Generate harvestine distance json.
+
+  harvestine <input_json>
+    Calculate sum of harvestine distances from coordinate pairs in input json.
 """
 
 ./build.sh
@@ -39,6 +42,9 @@ case "$1" in
     ;;
   --test)
     case "$2" in
+      sim86_decode | sim86_simulate)
+        echo build/sim86 | entr -cs "./test.sh $2"
+        ;;
       sum)
         echo build/sum | entr -cs './build/sum'
         ;;
@@ -50,10 +56,16 @@ case "$1" in
       gen_harvestine)
         echo build/gen_harvestine \
           | entr -cs "./build/gen_harvestine $3 $4 > build/harvestine_live.json\
-          2> build/harvestine_live.sum"
+          2> build/harvestine_live.sum && cat build/harvestine_live.json"
         ;;
-      sim86_decode | sim86_simulate)
-        echo build/sim86 | entr -cs "./test.sh $2"
+      harvestine)
+        echo build/harvestine \
+          | entr -cs "./build/harvestine build/harvestine_live.json > \
+          build/harvestine_live.out.sum \
+          && echo 'Sum:      ' && cat build/harvestine_live.out.sum \
+          && echo 'Expected: ' && cat build/harvestine_live.sum \
+          && echo 'Sums comparison: ' \
+          && cmp build/harvestine_live.out.sum build/harvestine_live.sum"
         ;;
       *)
         echo "Error: unsupported target '$2'" >&2
