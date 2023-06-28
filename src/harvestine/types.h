@@ -15,6 +15,8 @@ typedef i32             b32;
 #define true            1
 #define false           0
 
+#define U64_MAX         -1UL
+
 #define LIKELY(x)       __builtin_expect((x), 1)
 #define UNLIKELY(x)     __builtin_expect((x), 0)
 #define FORCE_INLINE    inline __attribute__((always_inline))

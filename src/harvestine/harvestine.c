@@ -26,18 +26,23 @@
 // <bench_stat>
 //
 // * Optimization 2:
-// Use is_whitespace2()
+// Rewrite is_whitespace
+// #define OPT_IS_WHITESPACE
 //
 // Stats
 // <bench_stat>
 //
-// * Optimization 3:
+// * Optimization 2:
+// Rewrite is_pairs
+// #define OPT_IS_PAIRS
+//
+// * Optimization 4:
 // Rewrite strtod(). strtod() uses isspace() and acceses locale
 //
 // Stats
 // <bench_stat>
 //
-// * Optimization 4:
+// * Optimization 5:
 // Filter out all the whitespaces
 //
 // Stats
@@ -137,6 +142,7 @@ file_read_failed:
 // --------------------------------------
 
 b32 is_whitespace(i32 c) {
+#ifndef OPT_IS_WHITESPACE
   switch(c) {
     case ' ':
     case '\t':
@@ -147,14 +153,13 @@ b32 is_whitespace(i32 c) {
     return 1;
   }
   return 0;
-}
-
-b32 is_whitespace2(i32 c) {
+#else
   i32 m0 = c == '\n';
   i32 m1 = c == '\r';
   i32 m2 = c == ' ';
   i32 m3 = c == '\t';
   return m0 | m1 | m2 | m3;
+#endif // #ifndef OPT_IS_WHITESPACE
 }
 
 void skip_whitespace(struct walk *w) {
@@ -289,6 +294,24 @@ l_loop_finished:
   fprintf(stderr, "    %.*s\n\n", (int)(r - l) , l);
 }
 
+b32 is_pairs(struct sv sv) {
+#ifndef OPT_IS_PAIRS
+  return strncmp("pairs", (char *)sv.data, sv.size) == 0;
+#else
+  if (sv.size != 7) {
+    return 0;
+  }
+  i32 m0 = sv.data[0] == '"';
+  i32 m1 = sv.data[1] == 'p';
+  i32 m2 = sv.data[2] == 'a';
+  i32 m3 = sv.data[3] == 'i';
+  i32 m4 = sv.data[4] == 'r';
+  i32 m5 = sv.data[5] == 's';
+  i32 m6 = sv.data[6] == '"';
+  return m0 | m1 | m2 | m3 | m4 | m5 | m6;
+#endif // #ifndef OPT_IS_PAIRS
+}
+
 // JSON predictive parser
 b32 parse_coords_json(struct buf_u8 json_buf, struct coords *out_coords) {
   u64 ret_coords_size = 0;
@@ -351,6 +374,10 @@ b32 parse_coords_json(struct buf_u8 json_buf, struct coords *out_coords) {
 // --------------------------------------
 // Main
 // --------------------------------------
+static void print_tsc(const char *s, u64 tsc, u64 tsc_total, u64 tsc_freq) {
+  fprintf(stderr, "%s\t%lutsc,\t%.4fs,\t (%.2f%%)\n", s, tsc,
+      (f32)tsc / tsc_freq, (f32)tsc / tsc_total * 100);
+}
 
 static void print_usage(void) {
   fprintf(stderr, "Usage:\nharvestine <input_file>\n");
@@ -362,15 +389,20 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  u64 begin = read_cpu_timer();
   const char *filepath = argv[1];
 
+  u64 file_read_begin = read_cpu_timer();
   struct buf_u8 json_buf = alloc_buf_file_read(filepath);
+  u64 file_read_end = read_cpu_timer();
   if (!json_buf.data) {
     fprintf(stderr, "Error: failed to read '%s'.\n", filepath);
     return 1;
   }
 
+  u64 parse_begin = read_cpu_timer();
   b32 parsed = parse_coords_json(json_buf, &s_coords);
+  u64 parse_end = read_cpu_timer();
   free(json_buf.data);
 
   if (!parsed) {
@@ -378,6 +410,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  u64 sum_begin = read_cpu_timer();
   f64 sum = 0.0;
   for (u64 i = 0; i < s_coords.size - 3; i += 4) {
     sum += calc_harvestine(
@@ -387,6 +420,20 @@ int main(int argc, char **argv) {
         s_coords.data[i + 3],
         EARTH_RAD);
   }
+  u64 sum_end = read_cpu_timer();
+  u64 end = read_cpu_timer();
+
+  u64 tsc_file = file_read_end - file_read_begin;
+  u64 tsc_parse = parse_end - parse_begin;
+  u64 tsc_sum = sum_end - sum_begin;
+  u64 tsc_total = end - begin;
+
+  u64 tsc_freq = get_cpu_timer_freq();
+
+  print_tsc("Time total: ", tsc_total, tsc_total, tsc_freq);
+  print_tsc("File read:  ", tsc_file, tsc_total, tsc_freq);
+  print_tsc("Parse:      ", tsc_parse, tsc_total, tsc_freq);
+  print_tsc("Harvestine: ", tsc_sum, tsc_total, tsc_freq);
 
   printf("%.17f\n", sum);
 
