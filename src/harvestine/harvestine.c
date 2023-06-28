@@ -50,6 +50,7 @@
 
 // Begin unity build
 #include "timer.c"
+#include "profiler.c"
 // End unity build
 
 #include "types.h"
@@ -91,6 +92,8 @@ static struct coords s_coords;
 // --------------------------------------
 
 static struct buf_u8 alloc_buf_file_read(const char *filepath) {
+  PROFILE_FUNC();
+
   struct buf_u8 ret = {0};
   u8 *buf = 0;
   u64 file_size = 0;
@@ -130,6 +133,7 @@ file_read_cleanup:
   if (f) {
     fclose(f);
   }
+
   return ret;
 
 file_read_failed:
@@ -182,7 +186,7 @@ b32 accept_char(struct walk * restrict w, i32 c) {
   return 0;
 }
 
-b32 accept_string(struct walk * restrict w, struct sv * restrict out_key) {
+b32 accept_sv(struct walk * restrict w, struct sv * restrict out_key) {
   skip_whitespace(w);
 
   if (!accept_char(w, '"')) {
@@ -202,7 +206,7 @@ b32 accept_string(struct walk * restrict w, struct sv * restrict out_key) {
   return 0;
 }
 
-b32 accept_double(struct walk * restrict w, f64 * restrict out_d) {
+b32 accept_f64(struct walk * restrict w, f64 * restrict out_d) {
   skip_whitespace(w);
 
   u8 *end;
@@ -239,8 +243,8 @@ b32 expect_char(struct walk * restrict w, i32 c) {
   return 0;
 }
 
-b32 expect_double(struct walk * restrict w, f64 *d) {
-  if (accept_double(w, d)) {
+b32 expect_f64(struct walk * restrict w, f64 *d) {
+  if (accept_f64(w, d)) {
     return 1;
   }
   fprintf(stderr, "Perser error: expected f64 at position %lu\n",
@@ -250,6 +254,7 @@ b32 expect_double(struct walk * restrict w, f64 *d) {
 
 i32 key_to_coord_index(struct sv key) {
   // `k + c` should remain negative if either `k` or `c` is not initialized
+  // in switch cases below
   i32 k = -32;
   i32 c = -32;
   if (key.size == 2) {
@@ -314,6 +319,8 @@ b32 is_pairs(struct sv sv) {
 
 // JSON predictive parser
 b32 parse_coords_json(struct buf_u8 json_buf, struct coords *out_coords) {
+  PROFILE_FUNC();
+
   u64 ret_coords_size = 0;
   struct sv key = {0};
   struct walk w = {json_buf, json_buf.data};
@@ -321,7 +328,7 @@ b32 parse_coords_json(struct buf_u8 json_buf, struct coords *out_coords) {
   out_coords->size = ret_coords_size;
   expect_char(&w, '{');
 
-  accept_string(&w, &key);
+  accept_sv(&w, &key);
   if (strncmp("pairs", (char *)key.data, key.size) == 0) {
     expect_char(&w, ':');
     expect_char(&w, '[');
@@ -334,7 +341,7 @@ b32 parse_coords_json(struct buf_u8 json_buf, struct coords *out_coords) {
       while (!accept_char(&w, '}')) {
         key.data = 0;
         key.size = 0;
-        accept_string(&w, &key);
+        accept_sv(&w, &key);
 
         i32 coord_index = key_to_coord_index(key);
         if (coord_index < 0) {
@@ -343,7 +350,7 @@ b32 parse_coords_json(struct buf_u8 json_buf, struct coords *out_coords) {
           return 0;
         } else {
           expect_char(&w, ':');
-          expect_double(&w, &coords[coord_index]);
+          expect_f64(&w, &coords[coord_index]);
           accept_char(&w, ',');
         }
       }
@@ -372,13 +379,29 @@ b32 parse_coords_json(struct buf_u8 json_buf, struct coords *out_coords) {
 }
 
 // --------------------------------------
-// Main
+// Sum
 // --------------------------------------
-static void print_tsc(const char *s, u64 tsc, u64 tsc_total, u64 tsc_freq) {
-  fprintf(stderr, "%s\t%lutsc,\t%.4fs,\t (%.2f%%)\n", s, tsc,
-      (f32)tsc / tsc_freq, (f32)tsc / tsc_total * 100);
+
+f64 sum_harvestine_distances(const struct coords *coords) {
+  PROFILE_FUNC();
+
+  f64 ret = 0.0;
+
+  for (u64 i = 0; i < coords->size - 3; i += 4) {
+    ret += calc_harvestine(
+        coords->data[i + 0],
+        coords->data[i + 1],
+        coords->data[i + 2],
+        coords->data[i + 3],
+        EARTH_RAD);
+  }
+
+  return ret;
 }
 
+// --------------------------------------
+// Main
+// --------------------------------------
 static void print_usage(void) {
   fprintf(stderr, "Usage:\nharvestine <input_file>\n");
 }
@@ -389,20 +412,18 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  u64 begin = read_cpu_timer();
+  profile_begin();
+
   const char *filepath = argv[1];
 
-  u64 file_read_begin = read_cpu_timer();
   struct buf_u8 json_buf = alloc_buf_file_read(filepath);
-  u64 file_read_end = read_cpu_timer();
   if (!json_buf.data) {
     fprintf(stderr, "Error: failed to read '%s'.\n", filepath);
     return 1;
   }
 
-  u64 parse_begin = read_cpu_timer();
+
   b32 parsed = parse_coords_json(json_buf, &s_coords);
-  u64 parse_end = read_cpu_timer();
   free(json_buf.data);
 
   if (!parsed) {
@@ -410,30 +431,15 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  u64 sum_begin = read_cpu_timer();
-  f64 sum = 0.0;
-  for (u64 i = 0; i < s_coords.size - 3; i += 4) {
-    sum += calc_harvestine(
-        s_coords.data[i + 0],
-        s_coords.data[i + 1],
-        s_coords.data[i + 2],
-        s_coords.data[i + 3],
-        EARTH_RAD);
+  f64 sum = sum_harvestine_distances(&s_coords);
+
+  profile_end();
+
+  u64 cpu_timer_freq = get_cpu_timer_freq();
+  if (!cpu_timer_freq) {
+    cpu_timer_freq = estimate_cpu_timer_freq(300);
   }
-  u64 sum_end = read_cpu_timer();
-  u64 end = read_cpu_timer();
-
-  u64 tsc_file = file_read_end - file_read_begin;
-  u64 tsc_parse = parse_end - parse_begin;
-  u64 tsc_sum = sum_end - sum_begin;
-  u64 tsc_total = end - begin;
-
-  u64 tsc_freq = get_cpu_timer_freq();
-
-  print_tsc("Time total: ", tsc_total, tsc_total, tsc_freq);
-  print_tsc("File read:  ", tsc_file, tsc_total, tsc_freq);
-  print_tsc("Parse:      ", tsc_parse, tsc_total, tsc_freq);
-  print_tsc("Harvestine: ", tsc_sum, tsc_total, tsc_freq);
+  profile_print_stats(cpu_timer_freq);
 
   printf("%.17f\n", sum);
 

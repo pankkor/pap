@@ -1,5 +1,9 @@
 #pragma once
 
+// --------------------------------------
+// Types
+// --------------------------------------
+
 typedef signed char     i8;
 typedef unsigned char   u8;
 typedef short           i16;
@@ -17,11 +21,31 @@ typedef i32             b32;
 
 #define U64_MAX         -1UL
 
+// --------------------------------------
+// Compiler
+// --------------------------------------
+
 #define LIKELY(x)       __builtin_expect((x), 1)
 #define UNLIKELY(x)     __builtin_expect((x), 0)
 #define FORCE_INLINE    inline __attribute__((always_inline))
+#define FUNC_NAME       __func__
 
-#define ARRAY_COUNT(x)    (u64)(sizeof(x) / sizeof(x[0]))
+#define CLEANUP(x)      __attribute__((cleanup(x)))
+#define NO_OPT          __attribute__((optnone))
+#define LOOP_NO_OPT    _Pragma(\
+    "clang loop unroll(disable) vectorize(disable) interleave(disable)")
+
+#define XSTR(x)         STR(x)
+#define STR(x)          #x
+#define CONCAT(x, y)    x ## y
+#define XCONCAT(x, y)   CONCAT(x, y)
+
+
+// --------------------------------------
+// Utils
+// --------------------------------------
+
+#define ARRAY_COUNT(x)  (u64)(sizeof(x) / sizeof(x[0]))
 
 #define SWAP(a, b)            \
   do {                        \
@@ -38,7 +62,3 @@ typedef i32             b32;
 })
 
 #define DSB(option)     __asm__ volatile ("dsb " #option : : : "memory")
-
-#define NO_OPT          __attribute__((optnone))
-#define LOOP_NO_OPT    _Pragma(\
-    "clang loop unroll(disable) vectorize(disable) interleave(disable)")
