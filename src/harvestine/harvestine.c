@@ -434,14 +434,8 @@ int main(int argc, char **argv) {
   f64 sum = sum_harvestine_distances(&s_coords);
 
   profile_end();
-
-  u64 cpu_timer_freq = get_cpu_timer_freq();
-  if (!cpu_timer_freq) {
-    cpu_timer_freq = estimate_cpu_timer_freq(300);
-  }
-  profile_print_stats(cpu_timer_freq);
+  profile_print_stats(get_or_estimate_cpu_timer_freq(300));
 
   printf("%.17f\n", sum);
-
   return 0;
 }

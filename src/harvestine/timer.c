@@ -60,3 +60,11 @@ u64 estimate_cpu_timer_freq(u64 time_to_run_ms) {
   f32 elapsed_time_s = (f32)(os_tsc - begin_os_tsc) / os_timer_freq;
   return (cpu_tsc - begin_cpu_tsc) / elapsed_time_s;
 }
+
+u64 get_or_estimate_cpu_timer_freq(u64 time_to_run_ms) {
+  u64 cpu_timer_freq = get_cpu_timer_freq();
+  if (!cpu_timer_freq) {
+    cpu_timer_freq = estimate_cpu_timer_freq(time_to_run_ms);
+  }
+  return cpu_timer_freq;
+}

@@ -5,14 +5,18 @@
 u64 get_os_timer_freq(void);
 u64 read_os_timer(void);
 
-// Estimate CPU timer frequency running up to `time_to_run_ms` milliseconds
-u64 estimate_cpu_timer_freq(u64 time_to_run_ms);
-
 // Returns timer frequency without esitmation.
 // AArch64 implementation immediately returns the value from cntfrq_el0 register
 // x86_64 returns 0
 u64 get_cpu_timer_freq(void);
 u64 read_cpu_timer(void);
+
+// Estimate CPU timer frequency running up to `time_to_run_ms` milliseconds
+u64 estimate_cpu_timer_freq(u64 time_to_run_ms);
+
+// Get cpu timer frequency. If it's not available
+// Estimate CPU timer frequency running up to `time_to_run_ms` milliseconds
+u64 get_or_estimate_cpu_timer_freq(u64 time_to_run_ms);
 
 #ifdef __aarch64__
 
