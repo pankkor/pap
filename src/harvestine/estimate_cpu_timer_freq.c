@@ -15,7 +15,7 @@
 #include <stdlib.h>     // atol
 
 static void print_usage(void) {
-  fprintf(stderr, "Usage:\nestimate_cpu_timer_freq <time_to_run_ms>\n");
+  fprintf(stderr, "Usage:\n    estimate_cpu_timer_freq <time_to_run_ms>\n");
 }
 
 int main(int argc, char **argv) {

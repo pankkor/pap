@@ -334,7 +334,6 @@ b32 parse_coords_json(struct buf_u8 json_buf, struct coords *out_coords) {
     expect_char(&w, '[');
 
     while (!accept_char(&w, ']')) {
-
       expect_char(&w, '{');
 
       f64 coords[4] = {0};
@@ -379,63 +378,71 @@ b32 parse_coords_json(struct buf_u8 json_buf, struct coords *out_coords) {
 }
 
 // --------------------------------------
-// Sum
+//  Harvestive average
 // --------------------------------------
 
-f64 sum_harvestine_distances(const struct coords *coords) {
+f64 avg_harvestine_distances(const struct coords *coords) {
   PROFILE_FUNC();
 
-  f64 ret = 0.0;
-
+  f64 avg = 0.0;
+  f64 avg_k = 1.0 * 4.0 / coords->size;
   for (u64 i = 0; i < coords->size - 3; i += 4) {
-    ret += calc_harvestine(
+    f64 dist = calc_harvestine(
         coords->data[i + 0],
         coords->data[i + 1],
         coords->data[i + 2],
         coords->data[i + 3],
         EARTH_RAD);
+    avg += dist * avg_k;
   }
 
-  return ret;
+  return avg;
 }
 
 // --------------------------------------
 // Main
 // --------------------------------------
 static void print_usage(void) {
-  fprintf(stderr, "Usage:\nharvestine <input_file>\n");
+  fprintf(stderr, "Usage:\n    harvestine <in_filename> <out_filename>\n");
 }
 
 int main(int argc, char **argv) {
-  if (argc < 2) {
+  if (argc < 3) {
     print_usage();
     return 1;
   }
 
   profile_begin();
 
-  const char *filepath = argv[1];
+  const char *in_filename = argv[1];
+  const char *out_filename = argv[2];
 
-  struct buf_u8 json_buf = alloc_buf_file_read(filepath);
+  struct buf_u8 json_buf = alloc_buf_file_read(in_filename);
   if (!json_buf.data) {
-    fprintf(stderr, "Error: failed to read '%s'.\n", filepath);
+    fprintf(stderr, "Error: failed to read '%s'.\n", in_filename);
     return 1;
   }
-
 
   b32 parsed = parse_coords_json(json_buf, &s_coords);
   free(json_buf.data);
 
   if (!parsed) {
-    fprintf(stderr, "Error: failed to parse json file '%s'.\n", filepath);
+    fprintf(stderr, "Error: failed to parse json file '%s'.\n", in_filename);
     return 1;
   }
 
-  f64 sum = sum_harvestine_distances(&s_coords);
+  f64 avg = avg_harvestine_distances(&s_coords);
 
   profile_end();
   profile_print_stats(get_or_estimate_cpu_timer_freq(300));
 
-  printf("%.17f\n", sum);
+  FILE *out_avg = fopen(out_filename, "wb");
+  if (!out_avg) {
+    fprintf(stderr, "Error: failed to open file '%s'", out_filename);
+    perror("");
+    return 1;
+  }
+
+  fprintf(out_avg, "%.17f\n", avg);
   return 0;
 }

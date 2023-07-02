@@ -31,7 +31,7 @@ TESTS
     Generate harvestine distance json.
 
   harvestine <input_json>
-    Calculate sum of harvestine distances from coordinate pairs in input json.
+    Calculate avg. of harvestine distances from coordinate pairs in input json.
 """
 
 ./build.sh
@@ -54,18 +54,19 @@ case "$1" in
           | entr -cs "time ./build/estimate_cpu_timer_freq $time_to_run_ms"
         ;;
       gen_harvestine)
+        filename=build/harvestine_live
         echo build/gen_harvestine \
-          | entr -cs "./build/gen_harvestine $3 $4 > build/harvestine_live.json\
-          2> build/harvestine_live.sum && cat build/harvestine_live.json"
+          | entr -cs "./build/gen_harvestine $3 $4 $filename \
+          && cat $filename.json"
         ;;
       harvestine)
+        filename=build/harvestine_live
         echo build/harvestine \
-          | entr -cs "./build/harvestine build/harvestine_live.json > \
-          build/harvestine_live.out.sum \
-          && echo 'Sum:      ' && cat build/harvestine_live.out.sum \
-          && echo 'Expected: ' && cat build/harvestine_live.sum \
-          && echo 'Sums comparison: ' \
-          && cmp build/harvestine_live.out.sum build/harvestine_live.sum"
+          | entr -cs "./build/harvestine $filename.json $filename.out.avg \
+          && echo 'Average:  ' && cat $filename.out.avg \
+          && echo 'Expected: ' && cat $filename.avg \
+          && echo 'Average comparison: ' \
+          && cmp build/harvestine_live.out.avg build/harvestine_live.avg"
         ;;
       *)
         echo "Error: unsupported target '$2'" >&2

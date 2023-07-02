@@ -157,7 +157,8 @@ bool simulate(struct memory *memory, u64 file_size, bool print_no_ip,
 
 void print_usage(void) {
   fprintf(stderr,
-      "Usage:\nsim86 <COMMAND> [OPTIONS] <input_binary_file>\n"
+      "Usage:\n"
+      "    sim86 <COMMAND> [OPTIONS] <input_binary_file>\n"
       "\n"
       "COMMAND\n"
       "    simulate             - simulate executing binary file and print\n"
