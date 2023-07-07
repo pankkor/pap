@@ -52,6 +52,7 @@ struct clocks calc_clocks(const struct instr *instr, bool is_8088) {
       }
       // TODO SEG REGs
       // TODO calc ea
+      return (struct clocks){4, 0, 0};
 
     case INSTR_ADD:     return (struct clocks){4, 0, 0};
     case INSTR_SUB:     return (struct clocks){4, 0, 0};

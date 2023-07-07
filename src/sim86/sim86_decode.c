@@ -15,7 +15,7 @@
 // Special case instructions might miss some flags and have them at different
 // positions.
 
-const struct reg s_map_regs[][2] = {
+static const struct reg s_map_regs[][2] = {
   {{REG_A,   REG_MODE_L}, {REG_A,   REG_MODE_X}},
   {{REG_C,   REG_MODE_L}, {REG_C,   REG_MODE_X}},
   {{REG_D,   REG_MODE_L}, {REG_D,   REG_MODE_X}},
@@ -26,22 +26,22 @@ const struct reg s_map_regs[][2] = {
   {{REG_B,   REG_MODE_H}, {REG_DI,  REG_MODE_X}},
 };
 
-const struct reg s_map_seg_regs[] = {
+static const struct reg s_map_seg_regs[] = {
   {REG_ES,  REG_MODE_X},
   {REG_CS,  REG_MODE_X},
   {REG_SS,  REG_MODE_X},
   {REG_DS,  REG_MODE_X},
 };
 
-FORCE_INLINE struct reg reg_from_bits(u8 bits, bool is_wide) {
+static FORCE_INLINE struct reg reg_from_bits(u8 bits, bool is_wide) {
   return s_map_regs[bits & 0x7][is_wide ? 1 : 0];
 }
 
-FORCE_INLINE struct reg seg_reg_from_bits(u8 bits) {
+static FORCE_INLINE struct reg seg_reg_from_bits(u8 bits) {
   return s_map_seg_regs[bits & 0x3];
 }
 
-bool decode_effective_address(struct stream *s, u8 rm, u8 mod,
+static bool decode_effective_address(struct stream *s, u8 rm, u8 mod,
     struct ea *out) {
 
   assert(rm < 8 && "Octal expected");
@@ -146,7 +146,7 @@ struct instr_table_b1_row {
 
 // Some instructions have the same opcode in Byte0, and the rest of opcode is
 // encoded in the following Byte1.
-const struct instr_table_b1_row s_instr_b1_rows[4][8] = {
+static const struct instr_table_b1_row s_instr_b1_rows[4][8] = {
   // 1000 00sw
   {
     {"add",     INSTR_ADD,      INSTR_FMT_DATASW,   0},
@@ -199,19 +199,19 @@ const struct instr_table_b1_row s_instr_b1_rows[4][8] = {
 // Instruction tables
 
 // Byte 0 flags
-#define F_SEG_REG     (struct instr_flag){FLAG_SEG_REG,  0, .pos = 3,     .size_bits = 2}
-#define F_REG         (struct instr_flag){FLAG_REG,      0, .pos = 0,     .size_bits = 3}
-#define F_W           (struct instr_flag){FLAG_W,        0, .pos = 0,     .size_bits = 1}
-#define F_W_ALT       (struct instr_flag){FLAG_W,        0, .pos = 3,     .size_bits = 1}
-#define F_D           (struct instr_flag){FLAG_D,        0, .pos = 1,     .size_bits = 1}
-#define F_S           (struct instr_flag){FLAG_S,        0, .pos = 1,     .size_bits = 1}
-#define F_V           (struct instr_flag){FLAG_V,        0, .pos = 1,     .size_bits = 1}
+#define F_SEG_REG     {FLAG_SEG_REG,  0, .pos = 3,     .size_bits = 2}
+#define F_REG         {FLAG_REG,      0, .pos = 0,     .size_bits = 3}
+#define F_W           {FLAG_W,        0, .pos = 0,     .size_bits = 1}
+#define F_W_ALT       {FLAG_W,        0, .pos = 3,     .size_bits = 1}
+#define F_D           {FLAG_D,        0, .pos = 1,     .size_bits = 1}
+#define F_S           {FLAG_S,        0, .pos = 1,     .size_bits = 1}
+#define F_V           {FLAG_V,        0, .pos = 1,     .size_bits = 1}
 
-#define F_IMPL_REG_A  (struct instr_flag){FLAG_REG,      1, .value = REG_A, .is_always_wide = 0}
-#define F_IMPL_REG_D  (struct instr_flag){FLAG_REG,      1, .value = REG_D, .is_always_wide = 1}
-#define F_IMPL_D      (struct instr_flag){FLAG_D,        1, .value = 1}
+#define F_IMPL_REG_A  {FLAG_REG,      1, .value = REG_A, .is_always_wide = 0}
+#define F_IMPL_REG_D  {FLAG_REG,      1, .value = REG_D, .is_always_wide = 1}
+#define F_IMPL_D      {FLAG_D,        1, .value = 1}
 
-const struct instr_table_row s_instr_rows[] = {
+static const struct instr_table_row s_instr_rows[] = {
   {"push",  INSTR_PUSH,   0xE7, 0x06, -1, {F_SEG_REG},                        DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 000s r110    - push SEG
   {"pop",   INSTR_POP,    0xE7, 0x07, -1, {F_SEG_REG},                        DISPL_FMT_NONE,   INSTR_FMT_NO_DATA}, // 000s r111    - pop SEG
 
@@ -346,7 +346,7 @@ void decode_build_index(void) {
   } while (++b0 != 0);
 }
 
-FORCE_INLINE enum prefix_type decode_prefix(u8 b, struct prefixes *out) {
+static FORCE_INLINE enum prefix_type decode_prefix(u8 b, struct prefixes *out) {
   enum prefix_type type = PREFIX_NONE;
 
   if ((b & 0xE7) == 0x26) {
@@ -455,7 +455,7 @@ struct instr decode_next_instr(struct stream *stream) {
   ret.type = row->type;
   ret.w = w;
 
-  u8 opcode_aux; // part of opcode in Byte 1
+  enum instr_fmt instr_fmt = row->fmt;
 
   // read displacement
   if (row->displ_fmt != DISPL_FMT_NONE) {
@@ -482,9 +482,19 @@ struct instr decode_next_instr(struct stream *stream) {
       ret.ops[ops_size++] = (struct operand){.ea = ea, .type = OP_EA};
     }
 
+
     if (row->displ_fmt == DISPL_FMT_RM) {
       // treat reg as auxiliary part of the opcode
-      opcode_aux = reg;
+      u8 opcode_aux = reg;
+
+      // handle the rest of the opcode in Byte1
+      if (row->b1_rows_idx >= 0) {
+        const struct instr_table_b1_row *b1_rows = s_instr_b1_rows[row->b1_rows_idx];
+        ret.str = b1_rows[opcode_aux].str;
+        ret.type = b1_rows[opcode_aux].type;
+        instr_fmt = b1_rows[opcode_aux].fmt;
+        ret.is_far = b1_rows[opcode_aux].is_far;
+      }
     } else {
       ret.ops[ops_size++] = (struct operand){
         .reg = row->displ_fmt == DISPL_FMT_REG_RM
@@ -493,17 +503,6 @@ struct instr decode_next_instr(struct stream *stream) {
         .type = OP_REG
       };
     }
-  }
-
-  enum instr_fmt instr_fmt = row->fmt;
-
-  // handle the rest of the opcode in Byte1
-  if (row->b1_rows_idx >= 0) {
-    const struct instr_table_b1_row *b1_rows = s_instr_b1_rows[row->b1_rows_idx];
-    ret.str = b1_rows[opcode_aux].str;
-    ret.type = b1_rows[opcode_aux].type;
-    instr_fmt = b1_rows[opcode_aux].fmt;
-    ret.is_far = b1_rows[opcode_aux].is_far;
   }
 
   if (flags[FLAG_V] >= 0) {
@@ -580,7 +579,7 @@ struct instr decode_next_instr(struct stream *stream) {
   }
 
   assert(ops_size < 3 && "More than 2 arguments to the operation");
-  assert(!d || ops_size > 1 && "d flag is set but not enough operands");
+  assert((!d || ops_size > 1) && "d flag is set but not enough operands");
 
   if (d && ops_size > 1) {
     SWAP(ret.ops[0], ret.ops[1]);

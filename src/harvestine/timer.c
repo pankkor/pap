@@ -19,13 +19,9 @@ u64 read_os_timer(void) {
   return value.QuadPart;
 }
 
-#else
+#elif __APPLE__
 
-#if __APPLE__
 #include <time.h>
-#else
-#include <sys/time.h>
-#endif // #if __APPLE__
 
 u64 get_os_timer_freq(void) {
   return 1e9;
@@ -37,6 +33,22 @@ u64 read_os_timer(void) {
     return -1;
   }
   return tp.tv_sec * 1e9 + tp.tv_nsec;
+}
+
+#else
+
+#include <sys/time.h>
+
+u64 get_os_timer_freq(void) {
+  return 1e6;
+}
+
+u64 read_os_timer(void) {
+  struct timeval tv;
+  if (UNLIKELY(gettimeofday(&tv, NULL))) {
+	return -1;
+  }
+  return tv.tv_sec * 1e6 + tv.tv_usec;
 }
 
 #endif // #if _WIN32

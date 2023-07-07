@@ -4,13 +4,16 @@
 // Prologue
 // sum of array of u32 numbers
 
-#ifndef __aarch64__
-#error Architectures other than AArch64 are not supported
-#endif // #ifndef __aarch64__
-
-#include <arm_neon.h>
 #include <stdio.h>    // printf
 #include <stdlib.h>   // atoi
+
+#if defined(__i386__) || defined(__x86_64__)
+#include <immintrin.h>
+#elif defined(__ARM_NEON)
+#include <arm_neon.h>
+#else
+#error Unsupported architecture
+#endif
 
 typedef int           i32;
 typedef unsigned int  u32;
@@ -24,14 +27,20 @@ typedef double        f64;
 
 #define ALIGNED(x)      __attribute__((aligned(x)))
 #define FORCE_INLINE    inline __attribute__((always_inline))
-#define ARRAY_COUNT(x)  (u64)(sizeof(x) / sizeof(x[0]))
+#define ARRAY_SIZE(x)  (u64)(sizeof(x) / sizeof(x[0]))
 
-#define DSB(option)     __asm__ volatile ("dsb " #option : : : "memory")
-
+// Disable optimizations
 #define NO_OPT          __attribute__((optnone))
+
+#ifdef __clang__
 #define LOOP_NO_OPT    _Pragma(\
     "clang loop unroll(disable) vectorize(disable) interleave(disable)")
+#else
+// TODO
+#define LOOP_NO_OPT
+#endif // #ifdef __clang__
 
+#ifdef __aarch64__
 static FORCE_INLINE u64 rdtsc(void) {
   u64 val;
   // use isb to avoid speculative read of cntvct_el0
@@ -39,14 +48,25 @@ static FORCE_INLINE u64 rdtsc(void) {
   return val;
 }
 
-static FORCE_INLINE u64 tsc_freq(void) {
+static FORCE_INLINE u64 get_tsc_freq(void) {
   u64 val;
   __asm__ volatile("mrs %0, cntfrq_el0" : "=r" (val));
   return val;
 }
+#else
+static FORCE_INLINE u64 rdtsc(void) {
+  return __rdtsc();
+}
+
+static FORCE_INLINE u64 get_tsc_freq(void) {
+  return 0;
+}
+#endif // #ifdef __aarch64__
+
+static u64 s_tsc_freq;
 
 static FORCE_INLINE f64 tsc_to_s(f64 tsc) {
-  return tsc / tsc_freq();
+  return tsc / s_tsc_freq;
 }
 
 static u64 benchmark(void (func)(void), u64 count) {
@@ -54,9 +74,7 @@ static u64 benchmark(void (func)(void), u64 count) {
   for (u64 i = 0; i < count; ++i) {
     u64 beg = rdtsc();
 
-    DSB(nsh);
     func();
-    DSB(nsh);
 
     u64 end = rdtsc();
 
@@ -68,28 +86,26 @@ static u64 benchmark(void (func)(void), u64 count) {
   return min_cycles;
 }
 
-// Note: it's not trivial to obtain CPU frequency on Apple silicon.
-// Core freqency varies depending on the type of a core,
-// how many cores are active within the cluster and core's power state.
-// To keep things simple just hardcore 3237Mhz
-// (highest frequency value for M1 Pro obtained from IORegistry)
-u64 CPU_FREQ_HZ = 3237460535;
-
 static void benchmark_print_result(
     const char *benchmark_name,
     f64 tsc,
-    u64 iters) {
-  f64 ns = tsc_to_s(tsc * 1e9);
-  f64 ipc = 1.0 / tsc_to_s(CPU_FREQ_HZ * tsc);
-
+    u64 ops) {
   printf("--- %s ---\n", benchmark_name);
-  printf("Total time                  %.8fns\n", ns);
-  printf("Time per iteration          %.8fns\n", ns / iters);
-  printf("Instructions per cycle      %.8f\n\n", ipc);
+  printf("TSC total                   %.8ftsc\n", tsc);
+  printf("TSC per operation           %.8ftsc\n", tsc / ops);
+  printf("Operations per TSC          %.8fops p/tsc\n", ops / tsc);
+
+  if (s_tsc_freq) {
+    f64 ns = tsc_to_s(tsc * 1e9);
+    printf("Time total                  %.8fns\n", ns);
+    printf("Time per operation          %.8fns\n", ns / ops);
+    printf("Operation per ns            %.8fops p/ns\n", ops / ns);
+  }
+  printf("\n");
   fflush(stdout);
 }
 
-// benchmnarks
+// Benchmnarks
 static FORCE_INLINE u32 sum_naive(u64 count, u32 * restrict in) {
   u32 sum = 0;
   LOOP_NO_OPT
@@ -160,7 +176,8 @@ static FORCE_INLINE u32 sum_unroll8(u64 count, u32 * restrict in) {
   return sum0 + sum1 + sum2 + sum3 + sum4 + sum5 + sum6 + sum7;
 }
 
-static FORCE_INLINE u32 sum_neon4(u64 count, u32 * restrict in) {
+#ifdef __ARM_NEON
+static FORCE_INLINE u32 sum_simd4(u64 count, u32 * restrict in) {
   uint32x4_t sum0 = vdupq_n_u32(0);
 
   u32 *it = in;
@@ -173,7 +190,7 @@ static FORCE_INLINE u32 sum_neon4(u64 count, u32 * restrict in) {
   return vaddvq_u32(sum0);
 }
 
-static FORCE_INLINE u32 sum_neon8(u64 count, u32 * restrict in) {
+static FORCE_INLINE u32 sum_simd8(u64 count, u32 * restrict in) {
   uint32x4_t sum0 = vdupq_n_u32(0);
   uint32x4_t sum1 = vdupq_n_u32(0);
 
@@ -191,7 +208,7 @@ static FORCE_INLINE u32 sum_neon8(u64 count, u32 * restrict in) {
   return vaddvq_u32(t);
 }
 
-static FORCE_INLINE u32 sum_neon16(u64 count, u32 * restrict in) {
+static FORCE_INLINE u32 sum_simd16(u64 count, u32 * restrict in) {
   uint32x4_t sum0 = vdupq_n_u32(0);
   uint32x4_t sum1 = vdupq_n_u32(0);
   uint32x4_t sum2 = vdupq_n_u32(0);
@@ -219,7 +236,7 @@ static FORCE_INLINE u32 sum_neon16(u64 count, u32 * restrict in) {
   return vaddvq_u32(t);
 }
 
-static FORCE_INLINE u32 sum_neon32(u64 count, u32 * restrict in) {
+static FORCE_INLINE u32 sum_simd32(u64 count, u32 * restrict in) {
   uint32x4_t sum0 = vdupq_n_u32(0);
   uint32x4_t sum1 = vdupq_n_u32(0);
   uint32x4_t sum2 = vdupq_n_u32(0);
@@ -263,9 +280,125 @@ static FORCE_INLINE u32 sum_neon32(u64 count, u32 * restrict in) {
   return vaddvq_u32(t);
 }
 
+#elif __SSSE3__
+
+static FORCE_INLINE u32 sum_simd4(u64 count, u32 * restrict in) {
+  __m128i sum0 = _mm_setzero_si128();
+
+  u32 *it = in;
+  u32 *end = in + count - 3;
+
+  while (it < end) {
+    __m128i v0 = _mm_load_si128((__m128i *)in);
+    sum0 = _mm_add_epi32(sum0, v0);
+    it += 4;
+  }
+
+  sum0 = _mm_hadd_epi32(sum0, sum0);
+  sum0 = _mm_hadd_epi32(sum0, sum0);
+  return _mm_cvtsi128_si32(sum0);
+}
+
+static FORCE_INLINE u32 sum_simd8(u64 count, u32 * restrict in) {
+  __m128i sum0 = _mm_setzero_si128();
+  __m128i sum1 = _mm_setzero_si128();
+
+  u32 *it = in;
+  u32 *end = in + count - 7;
+
+  while (it < end) {
+    __m128i v0 = _mm_load_si128((__m128i *)in + 0);
+    __m128i v1 = _mm_load_si128((__m128i *)in + 4);
+    sum0 = _mm_add_epi32(sum0, v0);
+    sum1 = _mm_add_epi32(sum1, v1);
+    it += 8;
+  }
+
+  __m128i t = _mm_hadd_epi32(sum0, sum1);
+  t = _mm_hadd_epi32(t, t);
+  t = _mm_hadd_epi32(t, t);
+
+  return _mm_cvtsi128_si32(t);
+}
+
+static FORCE_INLINE u32 sum_simd16(u64 count, u32 * restrict in) {
+  __m128i sum0 = _mm_setzero_si128();
+  __m128i sum1 = _mm_setzero_si128();
+  __m128i sum2 = _mm_setzero_si128();
+  __m128i sum3 = _mm_setzero_si128();
+
+  u32 *it = in;
+  u32 *end = in + count - 15;
+  while (it < end) {
+    __m128i v0 = _mm_load_si128((__m128i *)in + 0);
+    __m128i v1 = _mm_load_si128((__m128i *)in + 4);
+    __m128i v2 = _mm_load_si128((__m128i *)in + 8);
+    __m128i v3 = _mm_load_si128((__m128i *)in + 12);
+    sum0 = _mm_add_epi32(sum0, v0);
+    sum1 = _mm_add_epi32(sum1, v1);
+    sum2 = _mm_add_epi32(sum2, v2);
+    sum3 = _mm_add_epi32(sum3, v3);
+    it += 16;
+  }
+
+  __m128i t0 = _mm_hadd_epi32(sum0, sum1);
+  __m128i t1 = _mm_hadd_epi32(sum2, sum3);
+  __m128i t = _mm_hadd_epi32(t0, t1);
+
+  t = _mm_hadd_epi32(t, t);
+  t = _mm_hadd_epi32(t, t);
+  return _mm_cvtsi128_si32(t);
+}
+
+static FORCE_INLINE u32 sum_simd32(u64 count, u32 * restrict in) {
+  __m128i sum0 = _mm_setzero_si128();
+  __m128i sum1 = _mm_setzero_si128();
+  __m128i sum2 = _mm_setzero_si128();
+  __m128i sum3 = _mm_setzero_si128();
+  __m128i sum4 = _mm_setzero_si128();
+  __m128i sum5 = _mm_setzero_si128();
+  __m128i sum6 = _mm_setzero_si128();
+  __m128i sum7 = _mm_setzero_si128();
+
+  u32 *it = in;
+  u32 *end = in + count - 31;
+  while (it < end) {
+    __m128i v0 = _mm_load_si128((__m128i *)in + 0);
+    __m128i v1 = _mm_load_si128((__m128i *)in + 4);
+    __m128i v2 = _mm_load_si128((__m128i *)in + 8);
+    __m128i v3 = _mm_load_si128((__m128i *)in + 12);
+    __m128i v4 = _mm_load_si128((__m128i *)in + 16);
+    __m128i v5 = _mm_load_si128((__m128i *)in + 20);
+    __m128i v6 = _mm_load_si128((__m128i *)in + 24);
+    __m128i v7 = _mm_load_si128((__m128i *)in + 28);
+    sum0 = _mm_add_epi32(sum0, v0);
+    sum1 = _mm_add_epi32(sum1, v1);
+    sum2 = _mm_add_epi32(sum2, v2);
+    sum3 = _mm_add_epi32(sum3, v3);
+    sum4 = _mm_add_epi32(sum4, v4);
+    sum5 = _mm_add_epi32(sum5, v5);
+    sum6 = _mm_add_epi32(sum6, v6);
+    sum7 = _mm_add_epi32(sum7, v7);
+    it += 32;
+  }
+
+  __m128i t0 = _mm_hadd_epi32(sum0, sum1);
+  __m128i t1 = _mm_hadd_epi32(sum2, sum3);
+  __m128i t2 = _mm_hadd_epi32(sum4, sum5);
+  __m128i t3 = _mm_hadd_epi32(sum6, sum7);
+  __m128i t01 = _mm_hadd_epi32(t0, t1);
+  __m128i t23 = _mm_hadd_epi32(t2, t3);
+  __m128i t = _mm_hadd_epi32(t01, t23);
+
+  t = _mm_hadd_epi32(t, t);
+  t = _mm_hadd_epi32(t, t);
+  return _mm_cvtsi128_si32(t);
+}
+#endif // #ifdef __ARM_NEON__
+
 enum {ARR_CAPACITY = 12 * 1024 * 1024};
 ALIGNED(128) u32 s_arr[ARR_CAPACITY] = {0}; // big enough
-u64 s_arr_size = 4096;
+u64 s_arr_size = 8192;
 
 #define GEN_BENCHMARK_FUNC_SUM(name)      \
   void benchmark_##name(void) {           \
@@ -279,10 +412,10 @@ GEN_BENCHMARK_FUNC_SUM(sum_naive)
 GEN_BENCHMARK_FUNC_SUM(sum_unroll2)
 GEN_BENCHMARK_FUNC_SUM(sum_unroll4)
 GEN_BENCHMARK_FUNC_SUM(sum_unroll8)
-GEN_BENCHMARK_FUNC_SUM(sum_neon4)
-GEN_BENCHMARK_FUNC_SUM(sum_neon8)
-GEN_BENCHMARK_FUNC_SUM(sum_neon16)
-GEN_BENCHMARK_FUNC_SUM(sum_neon32)
+GEN_BENCHMARK_FUNC_SUM(sum_simd4)
+GEN_BENCHMARK_FUNC_SUM(sum_simd8)
+GEN_BENCHMARK_FUNC_SUM(sum_simd16)
+GEN_BENCHMARK_FUNC_SUM(sum_simd32)
 
 int main(int argc, char **argv) {
   if (argc >= 2) {
@@ -293,10 +426,10 @@ int main(int argc, char **argv) {
     }
   }
 
-  printf("Approx CPU freq             %ldHz (%.0fMHz)\n",
-      CPU_FREQ_HZ, CPU_FREQ_HZ * 1e-6);
+  s_tsc_freq = get_tsc_freq();
+
   printf("Time Stamp Counter freq     %ldHz (%.0fMHz)\n",
-      tsc_freq(), tsc_freq() * 1e-6);
+      s_tsc_freq, s_tsc_freq * 1e-6);
 
   printf("Array size                  %ld\n", s_arr_size);
   printf("\nBenchmarks\n");
@@ -317,17 +450,17 @@ int main(int argc, char **argv) {
     {"sum_unroll2", benchmark_sum_unroll2},
     {"sum_unroll4", benchmark_sum_unroll4},
     {"sum_unroll8", benchmark_sum_unroll8},
-    {"sum_neon4",   benchmark_sum_neon4},
-    {"sum_neon8",   benchmark_sum_neon8},
-    {"sum_neon16",  benchmark_sum_neon16},
-    {"sum_neon32",  benchmark_sum_neon32},
+    {"sum_simd4",   benchmark_sum_simd4},
+    {"sum_simd8",   benchmark_sum_simd8},
+    {"sum_simd16",  benchmark_sum_simd16},
+    {"sum_simd32",  benchmark_sum_simd32},
   };
 
-  for (u64 i = 0; i < ARRAY_COUNT(benchmarks); ++i) {
+  for (u64 i = 0; i < ARRAY_SIZE(benchmarks); ++i) {
     benchmark_print_result(
       benchmarks[i].name,
-      (f64)benchmark(benchmarks[i].func, iter_count) / s_arr_size,
-      iter_count);
+      (f64)benchmark(benchmarks[i].func, iter_count),
+      s_arr_size);
   }
 
   return 0;

@@ -65,6 +65,7 @@ struct mem reg_mode_to_offset_size(enum reg_mode m) {
     case REG_MODE_X:      return (struct mem){0, 0, 2};
     case REG_MODE_COUNT:  return (struct mem){0};
   }
+  return (struct mem){0};
 }
 
 u16 load_reg(struct reg reg, struct state *state) {

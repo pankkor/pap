@@ -54,7 +54,7 @@ typedef i32             b32;
     (b) = tmp;                \
   } while(0)
 
-#define CLAMP(k, l, r) ({               \
+#define CLAMP(k, l, r) __extension__ ({ \
     __typeof__(k) k_ = (k);             \
     __typeof__(l) l_ = (l);             \
     __typeof__(r) r_ = (r);             \

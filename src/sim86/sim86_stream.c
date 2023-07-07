@@ -28,8 +28,10 @@ bool stream_read_sign(struct stream *s, i16 * restrict out_word,
     return stream_read_w(s, (u16 *)out_word);
   } else {
     i8 lo;
-    bool res = stream_read_b(s, (u8 *)&lo);
-    *out_word = lo; // sign extend
-    return res;
+    if (stream_read_b(s, (u8 *)&lo)) {
+      *out_word = lo; // sign extend
+      return true;
+    }
+    return false;
   }
 }
