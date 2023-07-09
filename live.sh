@@ -60,7 +60,7 @@ case "$1" in
           && cat $filename.json"
         ;;
       harvestine)
-        filename=build/harvestine_live
+        filename=${3:-'build/harvestine_live'}
         echo build/harvestine \
           | entr -cs "./build/harvestine $filename.json $filename.out.avg \
           && echo 'Average:  ' && cat $filename.out.avg \

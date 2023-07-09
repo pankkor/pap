@@ -412,10 +412,10 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  profile_begin();
-
   const char *in_filename = argv[1];
   const char *out_filename = argv[2];
+
+  profile_begin();
 
   struct buf_u8 json_buf = alloc_buf_file_read(in_filename);
   if (!json_buf.data) {
@@ -434,7 +434,9 @@ int main(int argc, char **argv) {
   f64 avg = avg_harvestine_distances(&s_coords);
 
   profile_end();
-  profile_print_stats(get_or_estimate_cpu_timer_freq(300));
+
+  b32 is_csv = false;
+  profile_print_stats(get_or_estimate_cpu_timer_freq(300), is_csv);
 
   FILE *out_avg = fopen(out_filename, "wb");
   if (!out_avg) {
@@ -446,3 +448,5 @@ int main(int argc, char **argv) {
   fprintf(out_avg, "%.17f\n", avg);
   return 0;
 }
+
+PROFILE_USED_FRAME_COUNT_STATIC_ASSERT();
