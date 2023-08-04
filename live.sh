@@ -45,9 +45,6 @@ case "$1" in
       sim86_decode | sim86_simulate)
         echo build/sim86 | entr -cs "./test.sh $2"
         ;;
-      sum)
-        echo build/sum | entr -cs './build/sum'
-        ;;
       estimate_cpu_timer_freq)
         time_to_run_ms="${3:-1000}"
         echo build/estimate_cpu_timer_freq \
@@ -67,6 +64,9 @@ case "$1" in
           && echo 'Expected: ' && cat $filename.avg \
           && echo 'Average comparison: ' \
           && cmp build/harvestine_live.out.avg build/harvestine_live.avg"
+        ;;
+      sum|cp_rect|str_cpy|has_color|draw_circle)
+        echo "build/$2" | entr -cs "./build/$2"
         ;;
       *)
         echo "Error: unsupported target '$2'" >&2

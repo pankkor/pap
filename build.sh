@@ -62,6 +62,10 @@ src/harvestine/gen_harvestine.c
 src/harvestine/harvestine.c
 src/sim86/sim86.c
 src/sum/sum.c
+src/interview1994/cp_rect.c
+src/interview1994/draw_circle.c
+src/interview1994/has_color.c
+src/interview1994/str_cpy.c
 '
 
 # echo $cc_flags
