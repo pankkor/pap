@@ -63,30 +63,33 @@ void profile_frame_end(struct profile_frame_begin_mark *mark) {
 }
 
 static void profile_print_titles(b32 csv) {
-  fprintf(stderr, csv ?  "%s"   :  "%-34s",  "Frame");
-  fprintf(stderr, csv ? ",%s"   : "|%8s",    "Hits #");
+  fprintf(stderr, csv ?  "%s"   :  "%-33s",  "Frame");
+  fprintf(stderr, csv ? ",%s"   : "|%6s",    "Hits #");
   fprintf(stderr, csv ? ",%s"   : "|%12s",   "Total tsc");
-  fprintf(stderr, csv ? ",%s"   : "|%13s",   "Self tsc/hit");
+  fprintf(stderr, csv ? ",%s"   : "|%9s",    "Total s");
+  fprintf(stderr, csv ? ",%s"   : "|%6s",    "Total%");
   fprintf(stderr, csv ? ",%s"   : "|%12s",   "Self tsc");
   fprintf(stderr, csv ? ",%s"   : "|%9s",    "Self s");
-  fprintf(stderr, csv ? ",%s"   : "|%6s",    "%");
+  fprintf(stderr, csv ? ",%s"   : "|%6s",    "Self %");
   fprintf(stderr, "\n");
 }
 
 static void profile_print_frame(struct profile_frame *pf, u64 total_tsc,
     u64 cpu_timer_freq, b32 csv) {
 
-  f32 self_sec = (f32)pf->self_tsc / cpu_timer_freq;
-  f32 self_tsc_p_hit = (f32)pf->self_tsc / pf->hit_count;
-  f32 percent = (f32)pf->self_tsc / total_tsc * 100.0f;
+  f32 total_percent = (f32)pf->total_tsc / total_tsc * 100.0f;
+  f32 self_percent  = (f32)pf->self_tsc / total_tsc * 100.0f;
+  f32 total_sec     = (f32)pf->total_tsc / cpu_timer_freq;
+  f32 self_sec      = (f32)pf->self_tsc / cpu_timer_freq;
 
-  fprintf(stderr, csv ?  "%s"   :  "%-34s",  pf->name);
-  fprintf(stderr, csv ? ",%lu"  : "|%8lu",   pf->hit_count);
+  fprintf(stderr, csv ?  "%s"   :  "%-33s",  pf->name);
+  fprintf(stderr, csv ? ",%lu"  : "|%6lu",   pf->hit_count);
   fprintf(stderr, csv ? ",%lu"  : "|%12lu",  pf->total_tsc);
-  fprintf(stderr, csv ? ",%f"   : "|%13.1f", self_tsc_p_hit);
+  fprintf(stderr, csv ? ",%f"   : "|%9.5f",  total_sec);
+  fprintf(stderr, csv ? ",%f"   : "|%6.2f",  total_percent);
   fprintf(stderr, csv ? ",%lu"  : "|%12lu",  pf->self_tsc);
   fprintf(stderr, csv ? ",%f"   : "|%9.5f",  self_sec);
-  fprintf(stderr, csv ? ",%f"   : "|%6.2f",  percent);
+  fprintf(stderr, csv ? ",%f"   : "|%6.2f",  self_percent);
   fprintf(stderr, "\n");
 }
 
