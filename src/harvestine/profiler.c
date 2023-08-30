@@ -14,6 +14,7 @@ struct profiler_zone {
   u64 hit_count;
   u64 self_tsc;   // excludes elapsed children
   u64 total_tsc;  // includes elapsed children
+  u64 bytes;      // procossed bytes
 };
 
 static struct profiler_zone s_zones[PROFILER_ZONES_SIZE_MAX];
@@ -21,7 +22,7 @@ static struct profiler_zone_mark s_total_mark;
 static u64 s_last_zone_index;
 
 void profiler_begin(void) {
-  s_total_mark = profiler_zone_begin(1, "Main");
+  s_total_mark = profiler_zone_begin(1, "Main", 0);
 }
 
 void profiler_end(void) {
@@ -29,7 +30,7 @@ void profiler_end(void) {
 }
 
 struct profiler_zone_mark profiler_zone_begin(u32 index,
-    const char *name) {
+    const char *name, u64 bytes) {
   assert(index < PROFILER_ZONES_SIZE_MAX && "Zone index out of bounds");
 
   u64 prev_total_tsc = s_zones[index].total_tsc;
@@ -39,7 +40,8 @@ struct profiler_zone_mark profiler_zone_begin(u32 index,
     read_cpu_timer(),
     prev_total_tsc,
     index,
-    s_last_zone_index
+    s_last_zone_index,
+    bytes,
   };
 
   s_last_zone_index = index;
@@ -52,10 +54,11 @@ void profiler_zone_end(struct profiler_zone_mark *mark) {
 
   u64 elapsed_tsc = read_cpu_timer() - mark->begin_tsc;
 
-  s_zones[mark->index].name            = mark->name;
-  s_zones[mark->index].hit_count       += 1;
-  s_zones[mark->index].self_tsc        += elapsed_tsc;
-  s_zones[mark->index].total_tsc       = mark->prev_total_tsc + elapsed_tsc;
+  s_zones[mark->index].name           = mark->name;
+  s_zones[mark->index].hit_count      += 1;
+  s_zones[mark->index].self_tsc       += elapsed_tsc;
+  s_zones[mark->index].total_tsc      = mark->prev_total_tsc + elapsed_tsc;
+  s_zones[mark->index].bytes          += mark->bytes;
 
   s_zones[mark->parent_index].self_tsc -= elapsed_tsc;
 
@@ -65,12 +68,13 @@ void profiler_zone_end(struct profiler_zone_mark *mark) {
 static void profiler_print_titles(b32 csv) {
   fprintf(stderr, csv ?  "%s"   :  "%-30s",  "Zone");
   fprintf(stderr, csv ? ",%s"   : "|%9s",    "Hits #");
-  fprintf(stderr, csv ? ",%s"   : "|%12s",   "Total tsc");
   fprintf(stderr, csv ? ",%s"   : "|%9s",    "Total s");
   fprintf(stderr, csv ? ",%s"   : "|%6s",    "Total%");
-  fprintf(stderr, csv ? ",%s"   : "|%12s",   "Self tsc");
+  fprintf(stderr, csv ? ",%s"   : "|%11s",   "Self tsc");
   fprintf(stderr, csv ? ",%s"   : "|%9s",    "Self s");
   fprintf(stderr, csv ? ",%s"   : "|%6s",    "Self %");
+  fprintf(stderr, csv ? ",%s"   : "|%7s",    "Data MB");
+  fprintf(stderr, csv ? ",%s"   : "|%5s",    "GB/s");
   fprintf(stderr, "\n");
 }
 
@@ -82,14 +86,18 @@ static void profiler_print_zone(struct profiler_zone *pf, u64 total_tsc,
   f32 total_sec     = (f32)pf->total_tsc / cpu_timer_freq;
   f32 self_sec      = (f32)pf->self_tsc / cpu_timer_freq;
 
+  f32 mb            = (f32)pf->bytes / (1024 * 1024);
+  f32 gb_p_sec      = (f32)pf->bytes / total_sec / (1024 * 1024 * 1024);
+
   fprintf(stderr, csv ?  "%s"   :  "%-30s",  pf->name);
   fprintf(stderr, csv ? ",%lu"  : "|%9lu",   pf->hit_count);
-  fprintf(stderr, csv ? ",%lu"  : "|%12lu",  pf->total_tsc);
   fprintf(stderr, csv ? ",%f"   : "|%9.5f",  total_sec);
   fprintf(stderr, csv ? ",%f"   : "|%6.2f",  total_percent);
-  fprintf(stderr, csv ? ",%lu"  : "|%12lu",  pf->self_tsc);
+  fprintf(stderr, csv ? ",%lu"  : "|%11lu",  pf->self_tsc);
   fprintf(stderr, csv ? ",%f"   : "|%9.5f",  self_sec);
   fprintf(stderr, csv ? ",%f"   : "|%6.2f",  self_percent);
+  fprintf(stderr, csv ? ",%f"   : "|%7.2f",  mb);
+  fprintf(stderr, csv ? ",%f"   : "|%5.2f",  gb_p_sec);
   fprintf(stderr, "\n");
 }
 

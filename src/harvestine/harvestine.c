@@ -57,14 +57,14 @@
 #define PROFILER_LEVEL 1
 
 #if PROFILER_LEVEL >= 2
-    #define PROFILE_FUNC_LVL1() PROFILE_FUNC()
-    #define PROFILE_FUNC_LVL2() PROFILE_FUNC()
+    #define PROFILE_FUNC_LVL1(b) PROFILE_FUNC(b)
+    #define PROFILE_FUNC_LVL2(b) PROFILE_FUNC(b)
 #elif PROFILER_LEVEL == 1
-    #define PROFILE_FUNC_LVL1() PROFILE_FUNC()
-    #define PROFILE_FUNC_LVL2()
+    #define PROFILE_FUNC_LVL1(b) PROFILE_FUNC(b)
+    #define PROFILE_FUNC_LVL2(b)
 #elif PROFILER_LEVEL == 0
-    #define PROFILE_FUNC_LVL1()
-    #define PROFILE_FUNC_LVL2()
+    #define PROFILE_FUNC_LVL1(b)
+    #define PROFILE_FUNC_LVL2(b)
 #endif
 
 // Begin unity build
@@ -79,6 +79,7 @@
 #include <stdio.h>      // printf fprintf fopen fread fseek ftell
 #include <stdlib.h>     // malloc free strtod
 #include <string.h>     // strncmp
+#include <sys/stat.h>   // stat
 
 struct buf_u8 {
   u8 *data;
@@ -111,13 +112,27 @@ static struct coords s_coords;
 // --------------------------------------
 
 static struct buf_u8 alloc_buf_file_read(const char *filepath) {
-  PROFILE_FUNC();
+  PROFILE_FUNC(0);
 
+  int err = 0;
+  FILE *f = 0;
   struct buf_u8 ret = {0};
   u8 *buf = 0;
   u64 file_size = 0;
 
-  FILE *f = fopen(filepath, "rb");
+#if _WIN32
+  struct __stat64 st;
+  err = _stat64(filepath, &st);
+#else
+  struct stat st;
+  err = stat(filepath, &st);
+#endif
+  if (err) {
+    perror("Error: stat() failed");
+    goto file_read_failed;
+  }
+
+  f = fopen(filepath, "rb");
   if (!f) {
     perror("Error: fopen() failed");
     goto file_read_failed;
@@ -140,7 +155,11 @@ static struct buf_u8 alloc_buf_file_read(const char *filepath) {
     goto file_read_failed;
   }
 
-  if (fread(buf, 1, file_size, f) != file_size) {
+  PROFILE_ZONE_BEGIN("fread", file_size);
+  err = fread(buf, 1, file_size, f) != file_size;
+  PROFILE_ZONE_END();
+
+  if (err) {
     perror("Error: fread() failed");
     goto file_read_failed;
   }
@@ -165,7 +184,7 @@ file_read_failed:
 // --------------------------------------
 
 b32 is_whitespace(i32 c) {
-  PROFILE_FUNC_LVL2();
+  PROFILE_FUNC_LVL2(0);
 #ifndef OPT_IS_WHITESPACE
   switch(c) {
     case ' ':
@@ -187,14 +206,14 @@ b32 is_whitespace(i32 c) {
 }
 
 void skip_whitespace(struct walk *w) {
-  PROFILE_FUNC_LVL2();
+  PROFILE_FUNC_LVL2(0);
   while (w->cur < w->buf.end && is_whitespace(*w->cur)) {
     ++w->cur;
   }
 }
 
 b32 accept_char(struct walk * restrict w, i32 c) {
-  PROFILE_FUNC_LVL2();
+  PROFILE_FUNC_LVL2(0);
   skip_whitespace(w);
 
   if (w->cur >= w->buf.end) {
@@ -209,7 +228,7 @@ b32 accept_char(struct walk * restrict w, i32 c) {
 }
 
 b32 accept_sv(struct walk * restrict w, struct sv * restrict out_key) {
-  PROFILE_FUNC_LVL1();
+  PROFILE_FUNC_LVL1(0);
   skip_whitespace(w);
 
   if (!accept_char(w, '"')) {
@@ -230,7 +249,7 @@ b32 accept_sv(struct walk * restrict w, struct sv * restrict out_key) {
 }
 
 b32 accept_f64(struct walk * restrict w, f64 * restrict out_d) {
-  PROFILE_FUNC_LVL1();
+  PROFILE_FUNC_LVL1(0);
   skip_whitespace(w);
 
   u8 *end;
@@ -244,7 +263,7 @@ b32 accept_f64(struct walk * restrict w, f64 * restrict out_d) {
 }
 
 b32 accept_any_to_char(struct walk * restrict w, i32 c) {
-  PROFILE_FUNC_LVL1();
+  PROFILE_FUNC_LVL1(0);
   skip_whitespace(w);
 
   u8 *cur = w->cur;
@@ -260,7 +279,7 @@ b32 accept_any_to_char(struct walk * restrict w, i32 c) {
 }
 
 b32 expect_char(struct walk * restrict w, i32 c) {
-  PROFILE_FUNC_LVL1();
+  PROFILE_FUNC_LVL1(0);
   if (accept_char(w, c)) {
     return 1;
   }
@@ -270,7 +289,7 @@ b32 expect_char(struct walk * restrict w, i32 c) {
 }
 
 b32 expect_f64(struct walk * restrict w, f64 *d) {
-  PROFILE_FUNC_LVL1();
+  PROFILE_FUNC_LVL1(0);
   if (accept_f64(w, d)) {
     return 1;
   }
@@ -280,7 +299,7 @@ b32 expect_f64(struct walk * restrict w, f64 *d) {
 }
 
 i32 key_to_coord_index(struct sv key) {
-  PROFILE_FUNC_LVL1();
+  PROFILE_FUNC_LVL1(0);
   // `k + c` should remain negative if either `k` or `c` is not initialized
   // in switch cases below
   i32 k = -32;
@@ -299,7 +318,7 @@ i32 key_to_coord_index(struct sv key) {
 }
 
 void print_error_unexpected_key_error(const struct walk *w, struct sv key) {
-  PROFILE_FUNC_LVL2();
+  PROFILE_FUNC_LVL2(0);
   i32 pos = w->cur - w->buf.data - key.size;
   fprintf(stderr, "Perser error: unexpected key \"%.*s\" at position %d.\n\n",
       key.size, key.data, pos);
@@ -329,7 +348,7 @@ l_loop_finished:
 }
 
 b32 is_pairs(struct sv sv) {
-  PROFILE_FUNC_LVL2();
+  PROFILE_FUNC_LVL2(0);
 #ifndef OPT_IS_PAIRS
   return strncmp("pairs", (char *)sv.data, sv.size) == 0;
 #else
@@ -349,7 +368,7 @@ b32 is_pairs(struct sv sv) {
 
 // JSON predictive parser
 b32 parse_coords_json(struct buf_u8 json_buf, struct coords *out_coords) {
-  PROFILE_FUNC();
+  PROFILE_FUNC(json_buf.end - json_buf.data);
 
   u64 ret_coords_size = 0;
   struct sv key = {0};
@@ -412,7 +431,7 @@ b32 parse_coords_json(struct buf_u8 json_buf, struct coords *out_coords) {
 // --------------------------------------
 
 f64 avg_harvestine_distances(const struct coords *coords) {
-  PROFILE_FUNC();
+  PROFILE_FUNC(coords->size * sizeof(f64));
 
   f64 avg = 0.0;
   f64 avg_k = 1.0 * 4.0 / coords->size;
@@ -478,4 +497,4 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-PROFILER_USED_ZONE_COUNT_STATIC_ASSERT;
+PROFILER_USED_ZONE_COUNT_STATIC_ASSERT

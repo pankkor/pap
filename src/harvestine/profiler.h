@@ -8,17 +8,17 @@
 #define PROFILER_END()
 #define PROFILER_PRINT_STATS(cpu_timer_freq, csv)
 
-#define PROFILE_FUNC_BEGIN()
+#define PROFILE_FUNC_BEGIN(bytes)
 #define PROFILE_FUNC_END()
 
-#define PROFILE_ZONE_BEGIN(name)
+#define PROFILE_ZONE_BEGIN(name, bytes)
 #define PROFILE_ZONE_END(name)
 
-#define PROFILE_ZONE_BEGIN_V(name, var)
+#define PROFILE_ZONE_BEGIN_V(name, bytes, var)
 #define PROFILE_ZONE_END_V(var)
 
-#define PROFILE_FUNC()
-#define PROFILE_ZONE(name)
+#define PROFILE_FUNC(bytes)
+#define PROFILE_ZONE(name, bytes)
 
 #define PROFILER_USED_ZONE_COUNT_STATIC_ASSERT
 
@@ -34,33 +34,34 @@
 
 #define PROFILER_BEGIN()          profiler_begin()
 #define PROFILER_END()            profiler_end()
-#define PROFILER_PRINT_STATS(cpu_timer_freq, csv) profiler_print_stats(cpu_timer_freq, csv)
+#define PROFILER_PRINT_STATS(cpu_timer_freq, csv) \
+  profiler_print_stats(cpu_timer_freq, csv)
 
 // BEGIN/END macroses
-#define PROFILE_ZONE_BEGIN(name)  PROFILE_ZONE_BEGIN_V(name, tmp_profile_zone_)
+#define PROFILE_ZONE_BEGIN(name, bytes)  PROFILE_ZONE_BEGIN_V(name, bytes, tmp_profile_zone_)
 #define PROFILE_ZONE_END(name)    PROFILE_ZONE_END_V(tmp_profile_zone_)
 
-#define PROFILE_FUNC_BEGIN()      \
-  PROFILE_ZONE_BEGIN_V(FUNC_NAME, tmp_profile_func_zone_)
-#define PROFILE_FUNC_END()        \
+#define PROFILE_FUNC_BEGIN(bandwidth)  \
+  PROFILE_ZONE_BEGIN_V(FUNC_NAME, bytes, tmp_profile_func_zone_)
+#define PROFILE_FUNC_END()  \
   PROFILE_ZONE_END_V(FUNC_NAME, tmp_profile_func_zone_)
 
 // Accepts custom name for temp zone variable
-#define PROFILE_ZONE_BEGIN_V(name, var) \
-  struct profiler_zone_mark var = profiler_zone_begin(__COUNTER__ + 2, name)
-
+#define PROFILE_ZONE_BEGIN_V(name, bytes, var)  \
+  struct profiler_zone_mark var                 \
+    = profiler_zone_begin(__COUNTER__ + 2, name, bytes)
 #define PROFILE_ZONE_END_V(var)   profiler_zone_end(&var)
 
 // Scoped macroses using gcc attribute cleanup extension
-#define PROFILE_FUNC()            PROFILE_ZONE(FUNC_NAME)
-#define PROFILE_ZONE(name) \
+#define PROFILE_FUNC(bytes)       PROFILE_ZONE(FUNC_NAME, bytes)
+#define PROFILE_ZONE(name, bytes)                             \
   __attribute__((unused)) CLEANUP(cleanup_profiler_zone_end)  \
   struct profiler_zone_mark XCONCAT(tmp_p_zone_, __LINE__)    \
-    = profiler_zone_begin(__COUNTER__ + 2, name)
+    = profiler_zone_begin(__COUNTER__ + 2, name, bytes)
 
 #define PROFILER_USED_ZONE_COUNT_STATIC_ASSERT                \
   static_assert(__COUNTER__ + 1 < PROFILER_ZONES_SIZE_MAX,    \
-      "Number of profile zones exceeds size of profiler zones array")
+      "Number of profile zones exceeds size of profiler zones array");
 
 struct profiler_zone_mark {
   const char *name;
@@ -68,6 +69,7 @@ struct profiler_zone_mark {
   u64 prev_total_tsc;
   u32 index;
   u32 parent_index;
+  u64 bytes;
 };
 
 // Start profiling main zone
@@ -76,11 +78,13 @@ void profiler_begin(void);
 // Finish profiling main zone
 void profiler_end(void);
 
-// Start profiler zone with name, at `index` into profile zones array
-struct profiler_zone_mark profiler_zone_begin(u32 index, const char *name);
+// Start profiler zone with name, at `index` into profile zones array and
+// bytes to process
+struct profiler_zone_mark profiler_zone_begin(u32 index, const char *name,
+    u64 bytes);
 
 // End profiler zone
-void profiler_zone_end(struct profiler_zone_mark *begin_stat);
+void profiler_zone_end(struct profiler_zone_mark *mark);
 
 // Print profile stats to stderr
 // Prints in .csv format if `csv` is `true`.
