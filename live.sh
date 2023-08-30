@@ -59,7 +59,7 @@ case "$1" in
       harvestine)
         filename=${3:-'build/harvestine_live'}
         echo build/harvestine \
-          | entr -cs "./build/harvestine $filename.json $filename.out.avg \
+          | entr -cs "time ./build/harvestine $filename.json $filename.out.avg \
           && echo 'Average:  ' && cat $filename.out.avg \
           && echo 'Expected: ' && cat $filename.avg \
           && echo 'Average comparison: ' \

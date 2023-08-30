@@ -1,6 +1,6 @@
 #include "profiler.h"
 
-#include "timer.h"
+#ifdef PROFILER_ENABLED
 
 #include <assert.h>   // assert
 #include <stdio.h>    // fprintf stderr
@@ -63,8 +63,8 @@ void profiler_zone_end(struct profiler_zone_mark *mark) {
 }
 
 static void profiler_print_titles(b32 csv) {
-  fprintf(stderr, csv ?  "%s"   :  "%-33s",  "Zone");
-  fprintf(stderr, csv ? ",%s"   : "|%6s",    "Hits #");
+  fprintf(stderr, csv ?  "%s"   :  "%-30s",  "Zone");
+  fprintf(stderr, csv ? ",%s"   : "|%9s",    "Hits #");
   fprintf(stderr, csv ? ",%s"   : "|%12s",   "Total tsc");
   fprintf(stderr, csv ? ",%s"   : "|%9s",    "Total s");
   fprintf(stderr, csv ? ",%s"   : "|%6s",    "Total%");
@@ -82,8 +82,8 @@ static void profiler_print_zone(struct profiler_zone *pf, u64 total_tsc,
   f32 total_sec     = (f32)pf->total_tsc / cpu_timer_freq;
   f32 self_sec      = (f32)pf->self_tsc / cpu_timer_freq;
 
-  fprintf(stderr, csv ?  "%s"   :  "%-33s",  pf->name);
-  fprintf(stderr, csv ? ",%lu"  : "|%6lu",   pf->hit_count);
+  fprintf(stderr, csv ?  "%s"   :  "%-30s",  pf->name);
+  fprintf(stderr, csv ? ",%lu"  : "|%9lu",   pf->hit_count);
   fprintf(stderr, csv ? ",%lu"  : "|%12lu",  pf->total_tsc);
   fprintf(stderr, csv ? ",%f"   : "|%9.5f",  total_sec);
   fprintf(stderr, csv ? ",%f"   : "|%6.2f",  total_percent);
@@ -134,3 +134,4 @@ void profiler_print_stats(u64 cpu_timer_freq, b32 csv) {
     fprintf(stderr, "\n");
   }
 }
+#endif // #ifdef PROFILER_ENABLED

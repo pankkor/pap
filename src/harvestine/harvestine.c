@@ -48,6 +48,25 @@
 // Stats
 // <bench_stat>
 
+#define PROFILER_ENABLED
+
+// Profiler intrusive level:
+// 0 - not intrusive, only high level functions
+// 1 - some parser functions
+// 2 - all functions
+#define PROFILER_LEVEL 1
+
+#if PROFILER_LEVEL >= 2
+    #define PROFILE_FUNC_LVL1() PROFILE_FUNC()
+    #define PROFILE_FUNC_LVL2() PROFILE_FUNC()
+#elif PROFILER_LEVEL == 1
+    #define PROFILE_FUNC_LVL1() PROFILE_FUNC()
+    #define PROFILE_FUNC_LVL2()
+#elif PROFILER_LEVEL == 0
+    #define PROFILE_FUNC_LVL1()
+    #define PROFILE_FUNC_LVL2()
+#endif
+
 // Begin unity build
 #include "timer.c"
 #include "profiler.c"
@@ -146,6 +165,7 @@ file_read_failed:
 // --------------------------------------
 
 b32 is_whitespace(i32 c) {
+  PROFILE_FUNC_LVL2();
 #ifndef OPT_IS_WHITESPACE
   switch(c) {
     case ' ':
@@ -167,12 +187,14 @@ b32 is_whitespace(i32 c) {
 }
 
 void skip_whitespace(struct walk *w) {
+  PROFILE_FUNC_LVL2();
   while (w->cur < w->buf.end && is_whitespace(*w->cur)) {
     ++w->cur;
   }
 }
 
 b32 accept_char(struct walk * restrict w, i32 c) {
+  PROFILE_FUNC_LVL2();
   skip_whitespace(w);
 
   if (w->cur >= w->buf.end) {
@@ -187,6 +209,7 @@ b32 accept_char(struct walk * restrict w, i32 c) {
 }
 
 b32 accept_sv(struct walk * restrict w, struct sv * restrict out_key) {
+  PROFILE_FUNC_LVL1();
   skip_whitespace(w);
 
   if (!accept_char(w, '"')) {
@@ -207,6 +230,7 @@ b32 accept_sv(struct walk * restrict w, struct sv * restrict out_key) {
 }
 
 b32 accept_f64(struct walk * restrict w, f64 * restrict out_d) {
+  PROFILE_FUNC_LVL1();
   skip_whitespace(w);
 
   u8 *end;
@@ -220,6 +244,7 @@ b32 accept_f64(struct walk * restrict w, f64 * restrict out_d) {
 }
 
 b32 accept_any_to_char(struct walk * restrict w, i32 c) {
+  PROFILE_FUNC_LVL1();
   skip_whitespace(w);
 
   u8 *cur = w->cur;
@@ -235,6 +260,7 @@ b32 accept_any_to_char(struct walk * restrict w, i32 c) {
 }
 
 b32 expect_char(struct walk * restrict w, i32 c) {
+  PROFILE_FUNC_LVL1();
   if (accept_char(w, c)) {
     return 1;
   }
@@ -244,6 +270,7 @@ b32 expect_char(struct walk * restrict w, i32 c) {
 }
 
 b32 expect_f64(struct walk * restrict w, f64 *d) {
+  PROFILE_FUNC_LVL1();
   if (accept_f64(w, d)) {
     return 1;
   }
@@ -253,6 +280,7 @@ b32 expect_f64(struct walk * restrict w, f64 *d) {
 }
 
 i32 key_to_coord_index(struct sv key) {
+  PROFILE_FUNC_LVL1();
   // `k + c` should remain negative if either `k` or `c` is not initialized
   // in switch cases below
   i32 k = -32;
@@ -271,6 +299,7 @@ i32 key_to_coord_index(struct sv key) {
 }
 
 void print_error_unexpected_key_error(const struct walk *w, struct sv key) {
+  PROFILE_FUNC_LVL2();
   i32 pos = w->cur - w->buf.data - key.size;
   fprintf(stderr, "Perser error: unexpected key \"%.*s\" at position %d.\n\n",
       key.size, key.data, pos);
@@ -300,6 +329,7 @@ l_loop_finished:
 }
 
 b32 is_pairs(struct sv sv) {
+  PROFILE_FUNC_LVL2();
 #ifndef OPT_IS_PAIRS
   return strncmp("pairs", (char *)sv.data, sv.size) == 0;
 #else
@@ -415,7 +445,7 @@ int main(int argc, char **argv) {
   const char *in_filename = argv[1];
   const char *out_filename = argv[2];
 
-  profiler_begin();
+  PROFILER_BEGIN();
 
   struct buf_u8 json_buf = alloc_buf_file_read(in_filename);
   if (!json_buf.data) {
@@ -433,10 +463,9 @@ int main(int argc, char **argv) {
 
   f64 avg = avg_harvestine_distances(&s_coords);
 
-  profiler_end();
+  PROFILER_END();
 
-  b32 is_csv = false;
-  profiler_print_stats(get_or_estimate_cpu_timer_freq(300), is_csv);
+  PROFILER_PRINT_STATS(get_or_estimate_cpu_timer_freq(300), false);
 
   FILE *out_avg = fopen(out_filename, "wb");
   if (!out_avg) {
@@ -449,4 +478,4 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-PROFILER_USED_ZONE_COUNT_STATIC_ASSERT();
+PROFILER_USED_ZONE_COUNT_STATIC_ASSERT;

@@ -46,7 +46,7 @@ u64 get_os_timer_freq(void) {
 u64 read_os_timer(void) {
   struct timeval tv;
   if (UNLIKELY(gettimeofday(&tv, NULL))) {
-	return -1;
+    return -1;
   }
   return tv.tv_sec * 1e6 + tv.tv_usec;
 }
