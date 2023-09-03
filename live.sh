@@ -32,6 +32,21 @@ TESTS
 
   harvestine <input_json>
     Calculate avg. of harvestine distances from coordinate pairs in input json.
+
+  read_overhead <input_file>
+    Test of file read performance
+
+  cp_rect
+    Interview Questions from 1994: rectangular copy
+
+  str_copy
+    Interview Questions from 1994: copy string
+
+  has_color
+    Interview Questions from 1994: find 2-bit pixel color in a byte
+
+  draw_circle
+    Interview Questions from 1994: draw circle outline (Bresenham's circle)
 """
 
 ./build.sh
@@ -43,27 +58,29 @@ case "$1" in
   --test)
     case "$2" in
       sim86_decode | sim86_simulate)
-        echo build/sim86 | entr -cs "./test.sh $2"
+        echo 'build/sim86' | entr -cs "./test.sh $2"
         ;;
       estimate_cpu_timer_freq)
         time_to_run_ms="${3:-1000}"
-        echo build/estimate_cpu_timer_freq \
-          | entr -cs "time ./build/estimate_cpu_timer_freq $time_to_run_ms"
+        echo "build/$2" | entr -cs "time ./build/$2 $time_to_run_ms"
         ;;
       gen_harvestine)
         filename=build/harvestine_live
-        echo build/gen_harvestine \
-          | entr -cs "./build/gen_harvestine $3 $4 $filename \
-          && cat $filename.json"
+        echo "build/$2" \
+          | entr -cs "./build/$2 $3 $4 $filename && cat $filename.json"
         ;;
       harvestine)
         filename=${3:-'build/harvestine_live'}
-        echo build/harvestine \
+        echo "build/$2" \
           | entr -cs "time ./build/harvestine $filename.json $filename.out.avg \
           && echo 'Average:  ' && cat $filename.out.avg \
           && echo 'Expected: ' && cat $filename.avg \
           && echo 'Average comparison: ' \
           && cmp build/harvestine_live.out.avg build/harvestine_live.avg"
+        ;;
+      read_overhead)
+        filename=${3:-'build/harvestine_live.json'}
+        echo "build/$2" | entr -cs "./build/$2 $filename"
         ;;
       sum|cp_rect|str_cpy|has_color|draw_circle)
         echo "build/$2" | entr -cs "./build/$2"
@@ -76,7 +93,7 @@ case "$1" in
     esac
     ;;
   *)
-      echo "Error: unsupported command '$1'" >&2
+    echo "Error: unsupported command '$1'" >&2
     echo "$help" >&2
     exit 1
     ;;

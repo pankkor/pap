@@ -2,5 +2,5 @@
 -Wall
 -Wextra
 -Wpedantic
--O2
+-O0
 -g

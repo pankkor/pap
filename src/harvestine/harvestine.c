@@ -76,7 +76,7 @@
 #include "timer.h"
 #include "calc_harvestine.h"
 
-#include <stdio.h>      // printf fprintf fopen fread fseek ftell
+#include <stdio.h>      // printf fprintf fopen fread
 #include <stdlib.h>     // malloc free strtod
 #include <string.h>     // strncmp
 #include <sys/stat.h>   // stat
@@ -127,25 +127,17 @@ static struct buf_u8 alloc_buf_file_read(const char *filepath) {
   struct stat st;
   err = stat(filepath, &st);
 #endif
+
   if (err) {
     perror("Error: stat() failed");
     goto file_read_failed;
   }
 
+  file_size = st.st_size;
+
   f = fopen(filepath, "rb");
   if (!f) {
     perror("Error: fopen() failed");
-    goto file_read_failed;
-  }
-
-  if (fseek(f, 0, SEEK_END)) {
-    perror("Error: fseek() failed");
-    goto file_read_failed;
-  }
-
-  file_size = ftell(f);
-  if (fseek(f, 0, SEEK_SET)) {
-    perror("Error: fseek() failed");
     goto file_read_failed;
   }
 

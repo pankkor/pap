@@ -81,10 +81,10 @@ static void profiler_print_titles(b32 csv) {
 static void profiler_print_zone(struct profiler_zone *pf, u64 total_tsc,
     u64 cpu_timer_freq, b32 csv) {
 
-  f32 total_percent = (f32)pf->total_tsc / total_tsc * 100.0f;
-  f32 self_percent  = (f32)pf->self_tsc / total_tsc * 100.0f;
-  f32 total_sec     = (f32)pf->total_tsc / cpu_timer_freq;
-  f32 self_sec      = (f32)pf->self_tsc / cpu_timer_freq;
+  f32 total_percent = (f32)pf->total_tsc  / total_tsc * 100.0f;
+  f32 self_percent  = (f32)pf->self_tsc   / total_tsc * 100.0f;
+  f32 total_sec     = (f32)pf->total_tsc  / cpu_timer_freq;
+  f32 self_sec      = (f32)pf->self_tsc   / cpu_timer_freq;
 
   f32 mb            = (f32)pf->bytes / (1024 * 1024);
   f32 gb_p_sec      = (f32)pf->bytes / total_sec / (1024 * 1024 * 1024);
@@ -111,7 +111,7 @@ void profiler_print_stats(u64 cpu_timer_freq, b32 csv) {
     fprintf(stderr, s_delim100);
     fprintf(stderr, "%-24s", "CPU timer frequency: ");
     if (cpu_timer_freq) {
-      fprintf(stderr, "%-4.2fMHz\n", cpu_timer_freq * 1e-6f);
+      fprintf(stderr, "%-4.2f MHz\n", cpu_timer_freq * 1e-6f);
     } else {
       fprintf(stderr, "???\n");
     }
