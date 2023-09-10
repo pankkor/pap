@@ -21,7 +21,7 @@ cc_asm_flags="-S -fno-asynchronous-unwind-tables -fverbose-asm $CC_ASM_FLAGS"
 # Compiler flags
 
 # Optimisations
-# x86 and AMR have different behaviour for optimisation flags
+# x86 and ARM have different behaviour for optimisation flags
 # x86:
 # -march - minimal architecture to run on, overrides -mtune and -mcpu
 # -mtune - tune for mictoarchitecture but don't change ABI
@@ -37,7 +37,7 @@ cc_asm_flags="-S -fno-asynchronous-unwind-tables -fverbose-asm $CC_ASM_FLAGS"
 arch="$(uname -m)"
 case "$arch" in
   x86_64)   cc_flags="$cc_flags -march=native";;
-  arm64)  cc_flags="$cc_flags -mcpu=native";;
+  arm64)    cc_flags="$cc_flags -mcpu=native";;
   *)        echo 'Error: unknown architecture' >&2; exit 1;;
 esac
 

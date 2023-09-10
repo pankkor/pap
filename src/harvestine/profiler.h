@@ -37,7 +37,7 @@
 #define PROFILER_PRINT_STATS(cpu_timer_freq, csv) \
   profiler_print_stats(cpu_timer_freq, csv)
 
-// BEGIN/END macroses
+// BEGIN/END macros
 #define PROFILE_ZONE_BEGIN(name, bytes)  PROFILE_ZONE_BEGIN_V(name, bytes, tmp_profile_zone_)
 #define PROFILE_ZONE_END(name)    PROFILE_ZONE_END_V(tmp_profile_zone_)
 
@@ -52,7 +52,7 @@
     = profiler_zone_begin(__COUNTER__ + 2, name, bytes)
 #define PROFILE_ZONE_END_V(var)   profiler_zone_end(&var)
 
-// Scoped macroses using gcc attribute cleanup extension
+// Scoped macros using gcc attribute cleanup extension
 #define PROFILE_FUNC(bytes)       PROFILE_ZONE(FUNC_NAME, bytes)
 #define PROFILE_ZONE(name, bytes)                             \
   __attribute__((unused)) CLEANUP(cleanup_profiler_zone_end)  \

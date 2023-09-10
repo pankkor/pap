@@ -142,21 +142,31 @@ int main(int argc, char **argv) {
   };
 
   u64 cpu_timer_freq = get_or_estimate_cpu_timer_freq(300);
+  u64 try_duration_tsc = 10 * cpu_timer_freq; // 10 seconds
 
-  struct tester tester = {
-    .try_duration_tsc = 0 * cpu_timer_freq, // 10 seconds
-    .extected_bytes =  buf.size,
+  struct tester testers[ALLOCATION_TYPE_COUNT] = {
+    (struct tester){
+      .try_duration_tsc = try_duration_tsc,
+      .expected_bytes   = buf.size,
+    },
+    (struct tester){
+      .try_duration_tsc = try_duration_tsc,
+      .expected_bytes   = buf.size,
+    },
   };
 
   // Run tests for all allocation types
-  for (int alloc_type = 0; alloc_type < ALLOCATION_TYPE_COUNT; ++alloc_type) {
-    tester.run = (struct tester_run){0};
+  for (;;) {
+    for (int alloc_type = 0; alloc_type < ALLOCATION_TYPE_COUNT; ++alloc_type) {
+      struct tester *tester = testers + alloc_type;
+      tester->run = (struct tester_run){0};
 
-    fprintf(stderr, "--- Test, %s ---\n", alloc_type_to_cstr(alloc_type));
-    test_fread(&tester, alloc_type, &param);
+      fprintf(stderr, "--- Test, %s ---\n", alloc_type_to_cstr(alloc_type));
+      test_fread(tester, alloc_type, &param);
 
-    tester_print(&tester, cpu_timer_freq);
-    fprintf(stderr, "\n");
+      tester_print(tester, cpu_timer_freq);
+      fprintf(stderr, "\n");
+    }
   }
 
   free(buf.data);

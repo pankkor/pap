@@ -36,7 +36,7 @@ target per source file. With `asm` argument the output is an assembly file.
 - `src/harvestine/read_overhead.(h|c)` - benchmark to calculate read overhead
 - `src/harvestine/timer.(h|c)` - time stamp counter platform abstraction
 - `src/harvestine/tester.(h|c)` - repetition tester
-- `src/harvestine/types.h` - types and macroses
+- `src/harvestine/types.h` - types and macros
 
 #### Part 2.5 (interlude): Microsoft Interview 1994
 - `src/interview1994/cp_rect.c` - rectangular copy

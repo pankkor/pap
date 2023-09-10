@@ -3,7 +3,7 @@
 #include "types.h"
 
 // Repetition tester
-// Repeatedly perfom tests to get min and max elapsed times.
+// Repeatedly perfom tests to get statistic values
 //
 // Usage:
 //  struct tester t = {
@@ -23,44 +23,59 @@
 //  }
 //  tester_print(&t);
 
-enum tester_state {
-  TESTER_STATE_NOT_RUN = 0,
-  TESTER_STATE_RUNNING,
-  TESTER_STATE_COMPLETED,
-  TESTER_STATE_ERROR,
+// stat values
+enum tester_value
+{
+  TESTER_VALUE_STEP_COUNT,
+  TESTER_VALUE_TSC,
+  TESTER_VALUE_BYTES,            // number of bytes accumulated
+  TESTER_VALUE_MEM_PAGE_FAULTS,
+
+  TESTER_VALUE_COUNT,
 };
 
+struct tester_values {
+  u64 e[TESTER_VALUE_COUNT];
+};
+
+// tester accumulated stats across run
 struct tester_stats {
-  u64 step_count;
-  u64 total_tsc;
-  u64 max_tsc;
-  u64 min_tsc;
-  u64 bytes;
+  struct tester_values total;         // values with total, min and max elapsed
+  struct tester_values max;           // tsc
+  struct tester_values min_plus_one;  // we want to initialize `min` to u64_max,
+                                      // for 0-init use `min + 1` instead, since
+                                      // u64_int + 1 == 0
 };
 
 // Print tester stats
 // Prints in .csv format if `csv` is `true`.
-void tester_stats_print(struct tester_stats stats, u64 cpu_timer_freq, b32 csv);
+void tester_stats_print(struct tester_stats *stats, u64 cpu_timer_freq, b32 csv);
 
-// Tester internal run data. You can get `stats` from here.
-// 0 is initialization
+enum tester_state {
+  TESTER_STATE_START_RUN = 0,
+  TESTER_STATE_RUNNING,
+  TESTER_STATE_COMPLETED,
+  TESTER_STATE_ERROR,
+};
+// Tester internal run data.
+// 0 initializable
 struct tester_run {
-  struct tester_stats stats;  // run results
-  u64 step_elapsed_tsc;       // tsc elapsed for this step
-  u64 step_bytes;             // number of bytes accumulated on this step
-  u64 begin_tsc;              // tsc at which tester run started
-  i64 open_zone_count;        // safe check for unbalanced begin/end
+  struct tester_values step_values; // per step values stats
+  u64 begin_tsc;                    // tsc at which tester run started
+  i64 open_zone_count;              // safe check for unbalanced begin/end
   const char *error_message;
   enum tester_state state;
 };
 
 // Repetition tester
-// 0-initialize `.run` for a new run or set `run.state = TESTER_STATE_NOT_RUN`
+// 0-initialize `run` for a new run or set `run.state = TESTER_STATE_START_RUN`
+// `stats` are accumulated across different runs; reset to `{0}` if needed
 struct tester {
   u64 try_duration_tsc;       // reset on finding new minimum time
-  u64 extected_bytes;         // expect this amount of bytes to be provided
+  u64 expected_bytes;         // expect this amount of bytes to be provided
                               // during test step via tester_count_bytes()
-  struct tester_run run;      // initialize to {0} before for a new run
+  struct tester_stats stats;  // accumulated statistics across runs
+  struct tester_run run;      // initialize to {0} for a new run
 };
 
 // Calculates run stats and advances to the next iteration
