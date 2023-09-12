@@ -39,6 +39,7 @@ void draw_circle(i32 cx, i32 cy, i32 r, u32 rgb) {
   // This would determine if we decrement x or not.
   // After simplification we get
   //   -2x^2 + 2x -2y^2 + C < 0, where C = 2r^2 - 1
+  // (For derivation see `draw_circle_derivation.jpeg`)
   // C is a constant that could be precalculated.
   // If this inequality is true then we shall decrease x by 1.
   // However it's too complicated to be efficiently calculated on old CPUs.
