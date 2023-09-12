@@ -7,7 +7,7 @@
 
 static const char * const s_delim =
   "--------------------------------------------------"
-  "--------------------------------------------------\n";
+  "--------------------------------------------------";
 
 struct profiler_zone {
   const char *name;
@@ -106,9 +106,9 @@ void profiler_print_stats(u64 cpu_timer_freq, b32 csv) {
   f32 total_sec = (f32)total_tsc / cpu_timer_freq;
 
   if (!csv) {
-    fprintf(stderr, s_delim);
+    fprintf(stderr, "%s\n", s_delim);
     fprintf(stderr, "Instrumentation Profiler Stats\n");
-    fprintf(stderr, s_delim);
+    fprintf(stderr, "%s\n", s_delim);
     fprintf(stderr, "%-24s", "CPU timer frequency: ");
     if (cpu_timer_freq) {
       fprintf(stderr, "%-4.2f MHz\n", cpu_timer_freq * 1e-6f);
@@ -123,12 +123,12 @@ void profiler_print_stats(u64 cpu_timer_freq, b32 csv) {
       fprintf(stderr, "??? [!] profiler_begin() / profiler_end() not called\n");
     }
     fprintf(stderr, "\n");
-    fprintf(stderr, s_delim);
+    fprintf(stderr, "%s\n", s_delim);
   }
 
   profiler_print_titles(csv);
   if (!csv) {
-    fprintf(stderr, s_delim);
+    fprintf(stderr, "%s\n", s_delim);
   }
 
   for (u64 i = 1; i < PROFILER_ZONES_SIZE_MAX; ++i) {
@@ -138,8 +138,7 @@ void profiler_print_stats(u64 cpu_timer_freq, b32 csv) {
   }
 
   if (!csv) {
-    fprintf(stderr, s_delim);
-    fprintf(stderr, "\n");
+    fprintf(stderr, "%s\n\n", s_delim);
   }
 }
 #endif // #ifdef PROFILER_ENABLED

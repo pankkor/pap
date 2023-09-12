@@ -1,4 +1,5 @@
 #include "tester.h"
+#include "os.h"
 #include "timer.h"
 
 #include <stdio.h>    // fprintf stderr
@@ -7,7 +8,7 @@ enum {TESTER_DEFAULT_TRY_DURATION_TSC = 240000000};
 
 static const char * const s_delim =
   "--------------------------------------------------"
-  "---------------\n";
+  "---------------";
 
 b32 tester_step(struct tester *tester) {
   u64 current_tsc = read_cpu_timer();
@@ -21,6 +22,11 @@ b32 tester_step(struct tester *tester) {
       tester->run = (struct tester_run){0};
       tester->run.begin_tsc = current_tsc;
       tester->run.state = TESTER_STATE_RUNNING;
+
+      if (!os_init()) {
+        tester_error(tester,
+            "Failed to initialize performance counters. Try with super user.");
+      }
       break;
 
     case TESTER_STATE_RUNNING: {
@@ -77,11 +83,13 @@ b32 tester_step(struct tester *tester) {
 void tester_zone_begin(struct tester *tester) {
   tester->run.open_zone_count += 1;
   tester->run.step_values.e[TESTER_VALUE_TSC] -= read_cpu_timer();
+  tester->run.step_values.e[TESTER_VALUE_MEM_PAGE_FAULTS] -= os_read_page_fault_count();
 }
 
 void tester_zone_end(struct tester *tester) {
   tester->run.open_zone_count -= 1;
   tester->run.step_values.e[TESTER_VALUE_TSC] += read_cpu_timer();
+  tester->run.step_values.e[TESTER_VALUE_MEM_PAGE_FAULTS] += os_read_page_fault_count();
 }
 
 void tester_count_bytes(struct tester *tester, u64 bytes) {
@@ -165,7 +173,7 @@ void tester_print(struct tester *tester, u64 cpu_timer_freq) {
       b32 is_csv = false;
       fprintf(stderr, "\n");
       tester_stats_print_titles(is_csv);
-      fprintf(stderr,s_delim);
+      fprintf(stderr, "%s\n", s_delim);
       tester_stats_print(&tester->stats, cpu_timer_freq, is_csv);
       fprintf(stderr, "\n");
       break;

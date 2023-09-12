@@ -4,8 +4,9 @@
 // Microsoft interview questions from 1994
 // Question 4: Draw circle outline
 
-#include <stdio.h>  // printf
-#include <unistd.h> // usleep
+#include <stdio.h>      // printf
+#include <time.h>       // nanosleep
+#include <unistd.h>     // usleep
 
 typedef unsigned char u8;
 typedef unsigned int u32;

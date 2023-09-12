@@ -2,5 +2,6 @@
 -Wall
 -Wextra
 -Wpedantic
--O0
+-O2
 -g
+-D_DEFAULT_SOURCE

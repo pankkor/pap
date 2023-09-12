@@ -49,8 +49,6 @@ TESTS
     Interview Questions from 1994: draw circle outline (Bresenham's circle)
 """
 
-./build.sh
-
 case "$1" in
   -h | --help)
     echo "$help"
@@ -58,21 +56,23 @@ case "$1" in
   --test)
     case "$2" in
       sim86_decode | sim86_simulate)
-        echo 'build/sim86' | entr -cs "./test.sh $2"
+        cmd="./test.sh $2"
+        echo 'build/sim86' | entr -cs "echo 'Running: $cmd'; $cmd"
         ;;
       estimate_cpu_timer_freq)
         time_to_run_ms="${3:-1000}"
-        echo "build/$2" | entr -cs "time ./build/$2 $time_to_run_ms"
+        cmd="time ./build/$2 $time_to_run_ms"
+        echo "build/$2" | entr -cs "echo 'Running: $cmd'; $cmd"
         ;;
       gen_harvestine)
         filename=build/harvestine_live
-        echo "build/$2" \
-          | entr -cs "./build/$2 $3 $4 $filename && cat $filename.json"
+        cmd="./build/$2 $3 $4 $filename && cat $filename.json"
+        echo "build/$2" | entr -cs "echo 'Running: $cmd'; $cmd"
         ;;
       harvestine)
         filename=${3:-'build/harvestine_live'}
-        echo "build/$2" \
-          | entr -cs "time ./build/harvestine $filename.json $filename.out.avg \
+        cmd="time ./build/harvestine $filename.json $filename.out.avg"
+        echo "build/$2" | entr -cs "echo 'Running: $cmd'; $cmd \
           && echo 'Average:  ' && cat $filename.out.avg \
           && echo 'Expected: ' && cat $filename.avg \
           && echo 'Average comparison: ' \
@@ -80,10 +80,12 @@ case "$1" in
         ;;
       read_overhead)
         filename=${3:-'build/harvestine_live.json'}
-        echo "build/$2" | entr -cs "./build/$2 $filename"
+        cmd="./build/$2 $filename"
+        echo "build/$2" | entr -cs "echo 'Running: $cmd'; $cmd"
         ;;
       sum|cp_rect|str_cpy|has_color|draw_circle)
-        echo "build/$2" | entr -cs "./build/$2"
+        cmd="./build/$2"
+        echo "build/$2" | entr -cs "echo 'Running: $cmd'; $cmd"
         ;;
       *)
         echo "Error: unsupported target '$2'" >&2

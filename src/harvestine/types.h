@@ -40,7 +40,6 @@ typedef i32             b32;
 #define CONCAT(x, y)    x ## y
 #define XCONCAT(x, y)   CONCAT(x, y)
 
-
 // --------------------------------------
 // Utils
 // --------------------------------------

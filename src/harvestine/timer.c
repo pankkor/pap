@@ -54,7 +54,7 @@ u64 read_os_timer(void) {
 #endif // #if _WIN32
 
 u64 estimate_cpu_timer_freq(u64 time_to_run_ms) {
-  f32 time_to_run_s = (f32)time_to_run_ms * 1e3f;
+  f32 time_to_run_s = (f32)time_to_run_ms / 1e3f;
 
   u64 os_timer_freq = get_os_timer_freq();
   f32 time_to_run_os_tsc = time_to_run_s * os_timer_freq;
