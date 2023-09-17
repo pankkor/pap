@@ -1,18 +1,39 @@
 #include "os.h"
 
+struct os {
+#if _WIN32
+#elif __APPLE__
+#else
+  i32 pe_page_fault_fd; // perf event: page faults
+#endif // #if _WIN32
+  b32 is_initialized;
+};
+
 #if _WIN32
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
-u64 os_read_mem_page_fault_count(void) {
+u64 os_read_page_fault_count(void) {
   return -1;
 }
 
 #elif __APPLE__
 
-u64 os_read_mem_page_fault_count(void) {
-  return -1;
+// TODO use macos tools
+// look into libc impl of sys/resource.h
+#include <sys/resource.h>
+
+b32 os_init(void) {
+  return 1;
+}
+
+u64 os_read_page_fault_count(void) {
+  // NOTE: ru_minflt  the number of page faults serviced without any I/O activity.
+  //       ru_majflt  the number of page faults serviced that required I/O activity.
+  struct rusage rusage = {0};
+  getrusage(RUSAGE_SELF, &rusage);
+  return rusage.ru_minflt + rusage.ru_majflt;
 }
 
 #else
