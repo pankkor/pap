@@ -9,6 +9,7 @@
 
 #include <stdio.h>      // printf fprintf fopen fwrite snprintf
 #include <stdlib.h>     // atol rand
+#include <string.h>     // strcmp
 
 static void print_usage(void) {
   fprintf(stderr,
@@ -40,6 +41,10 @@ static FILE *file_open(const char *filename, const char *ext) {
 }
 
 int main(int argc, char **argv) {
+  if (argc > 1 && strcmp(argv[1], "-h") == 0) {
+    print_usage();
+    return 0;
+  }
   if (argc < 4) {
     print_usage();
     return 1;

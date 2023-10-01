@@ -448,6 +448,10 @@ static void print_usage(void) {
 }
 
 int main(int argc, char **argv) {
+  if (argc > 1 && strcmp(argv[1], "-h") == 0) {
+    print_usage();
+    return 0;
+  }
   if (argc < 3) {
     print_usage();
     return 1;

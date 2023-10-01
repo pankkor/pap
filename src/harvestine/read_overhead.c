@@ -171,6 +171,10 @@ int main(int argc, char **argv) {
   const char *testname;
   int err;
 
+  if (argc > 1 && strcmp(argv[1], "-h") == 0) {
+    print_usage();
+    return 0;
+  }
   if (argc < 2) {
     print_usage();
     return 1;
@@ -208,31 +212,31 @@ int main(int argc, char **argv) {
   // initialize testers
   struct tester testers[ARRAY_COUNT(s_tests)][ALLOC_TYPE_COUNT] = {0};
 
-  for (u64 test_idx = 0; test_idx < ARRAY_COUNT(s_tests); ++test_idx) {
+  for (u64 test_index = 0; test_index < ARRAY_COUNT(s_tests); ++test_index) {
     for (i64 alloc_type = 0; alloc_type < ALLOC_TYPE_COUNT; ++alloc_type) {
-        struct tester *tester = &testers[test_idx][alloc_type];
+        struct tester *tester = &testers[test_index][alloc_type];
         tester->try_duration_tsc = try_duration_tsc;
         tester->expected_bytes   = buf.size;
     }
   }
 
   // Run tests forever
-  b32 is_forever = true;
-  for (u64 run_idx = 0; is_forever; ++run_idx) {
+  u64 number_of_runs = (u64)-1; // run tests forever
+  for (u64 run_index = 0; run_index < number_of_runs; ++run_index) {
     fprintf(stderr, "------------------------------------------------------\n");
-    fprintf(stderr, "RUN %-20lu\n", run_idx);
+    fprintf(stderr, "RUN %-20lu\n", run_index);
     fprintf(stderr, "------------------------------------------------------\n");
 
     // for all tests
-    for (u64 test_idx = 0; test_idx < ARRAY_COUNT(s_tests); ++test_idx) {
-      struct test *test = s_tests + test_idx;
+    for (u64 test_index = 0; test_index < ARRAY_COUNT(s_tests); ++test_index) {
+      struct test *test = s_tests + test_index;
       if (testname && strcmp(testname, test->name) != 0) {
         continue;
       }
 
       // for all allocation types
       for (i64 alloc_type = 0; alloc_type < ALLOC_TYPE_COUNT; ++alloc_type) {
-        struct tester *tester = &testers[test_idx][alloc_type];
+        struct tester *tester = &testers[test_index][alloc_type];
         tester->run = (struct tester_run){0};
 
         fprintf(stderr, "--- Test %s, %s ---\n",

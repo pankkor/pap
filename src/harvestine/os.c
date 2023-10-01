@@ -20,12 +20,10 @@ u64 os_read_page_fault_count(void) {
 
 #elif __APPLE__
 
-// TODO use macos tools
-// look into libc impl of sys/resource.h
-#include <sys/resource.h>
+#include <sys/resource.h> // getrusage
 
 b32 os_init(void) {
-  return 1;
+  return true;
 }
 
 u64 os_read_page_fault_count(void) {
@@ -33,7 +31,7 @@ u64 os_read_page_fault_count(void) {
   //       ru_majflt  the number of page faults serviced that required I/O activity.
   struct rusage rusage = {0};
   getrusage(RUSAGE_SELF, &rusage);
-  return rusage.ru_minflt + rusage.ru_majflt;
+  return rusage.ru_minflt;
 }
 
 #else
@@ -68,7 +66,7 @@ b32 os_init(void) {
         &pf_attr,
         0, -1,  // pid == 0, cpu == -1: measure *this* process on *all* CPUs
         -1,     // group leader
-        0);
+        PERF_FLAG_FD_CLOEXEC);
 
     s_os.pe_page_fault_fd = pf_fd;
     s_os.is_initialized = pf_fd != -1;
