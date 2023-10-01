@@ -1,18 +1,20 @@
 #!/bin/sh
 
 help="""
+USAGE
+  live.sh <test> [test_arguments]
+
 Simple live coding evnironment.Runs selected test on every binary modification.
 Requirements:     'entr' utility installed.
 Build directory:  './build'
 
-Example:
+Example
   live.sh --test sum
 Would watch ./build/sum for modifications using 'entr' and rerun sum test when
 it's modified.
 
 OPTIONS
   -h, --help
-  --test <test> [test] [test_options]
 
 TESTS
   sim86_decode
@@ -34,7 +36,10 @@ TESTS
     Calculate avg. of harvestine distances from coordinate pairs in input json.
 
   read_overhead <input_file>
-    Test of file read performance
+    Repetiton test of file read performance
+
+  pf_counter
+    Test of Page Fault performance
 
   cp_rect
     Interview Questions from 1994: rectangular copy
@@ -53,49 +58,42 @@ case "$1" in
   -h | --help)
     echo "$help"
     ;;
-  --test)
-    case "$2" in
-      sim86_decode | sim86_simulate)
-        cmd="./test.sh $2"
-        echo 'build/sim86' | entr -cs "echo 'Running: $cmd'; $cmd"
-        ;;
-      estimate_cpu_timer_freq)
-        time_to_run_ms="${3:-1000}"
-        cmd="time ./build/$2 $time_to_run_ms"
-        echo "build/$2" | entr -cs "echo 'Running: $cmd'; $cmd"
-        ;;
-      gen_harvestine)
-        filename=build/harvestine_live
-        cmd="./build/$2 $3 $4 $filename && cat $filename.json"
-        echo "build/$2" | entr -cs "echo 'Running: $cmd'; $cmd"
-        ;;
-      harvestine)
-        filename=${3:-'build/harvestine_live'}
-        cmd="time ./build/harvestine $filename.json $filename.out.avg"
-        echo "build/$2" | entr -cs "echo 'Running: $cmd'; $cmd \
-          && echo 'Average:  ' && cat $filename.out.avg \
-          && echo 'Expected: ' && cat $filename.avg \
-          && echo 'Average comparison: ' \
-          && cmp build/harvestine_live.out.avg build/harvestine_live.avg"
-        ;;
-      read_overhead)
-        filename=${3:-'build/harvestine_live.json'}
-        cmd="./build/$2 $filename"
-        echo "build/$2" | entr -cs "echo 'Running: $cmd'; $cmd"
-        ;;
-      sum|cp_rect|str_cpy|has_color|draw_circle)
-        cmd="./build/$2"
-        echo "build/$2" | entr -cs "echo 'Running: $cmd'; $cmd"
-        ;;
-      *)
-        echo "Error: unsupported target '$2'" >&2
-        echo "$help" >&2
-        exit 1
-        ;;
-    esac
+  sim86_decode | sim86_simulate)
+    cmd="./test.sh '$1'"
+    echo 'build/sim86' | entr -cs "echo 'Running: $cmd'; $cmd"
+    ;;
+  estimate_cpu_timer_freq)
+    time_to_run_ms="${2:-1000}"
+    cmd="time ./build/$1 '$time_to_run_ms'"
+    echo "build/$1" | entr -cs "echo 'Running: $cmd'; $cmd"
+    ;;
+  gen_harvestine)
+    filename="build/harvestine_live"
+    cmd="./build/$1 '$2' '$3' '$filename' && cat '$filename.json'"
+    echo "build/$1" | entr -cs "echo 'Running: $cmd'; $cmd"
+    ;;
+  harvestine)
+    filename=${2:-'build/harvestine_live'}
+    cmd="time ./build/harvestine '$filename.json' '$filename.out.avg'"
+    echo "build/$1" | entr -cs "echo 'Running: $cmd'; $cmd \
+      && echo 'Average:  ' && cat '$filename.out.avg' \
+      && echo 'Expected: ' && cat '$filename.avg' \
+      && echo 'Average comparison: ' \
+      && cmp '$filename.out.avg' '$filename.avg'"
+    ;;
+  read_overhead)
+    filename=${2:-'build/harvestine_live.json'}
+    cmd="./build/$1 '$filename'"
+    echo "build/$1" | entr -cs "echo 'Running: $cmd'; $cmd"
+    ;;
+  # Simply forward arguments to test app
+  # NOTE: Beware of non escaped args
+  sum|cp_rect|str_cpy|has_color|draw_circle|pf_counter)
+    cmd="./build/$@"
+    echo "build/$1" | entr -cs "echo 'Running: $cmd'; $cmd"
     ;;
   *)
-    echo "Error: unsupported command '$1'" >&2
+    echo "Error: unsupported test '$1'" >&2
     echo "$help" >&2
     exit 1
     ;;

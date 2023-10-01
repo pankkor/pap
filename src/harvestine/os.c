@@ -1,37 +1,61 @@
 #include "os.h"
 
-struct os {
-#if _WIN32
-#elif __APPLE__
-#else
-  i32 pe_page_fault_fd; // perf event: page faults
-#endif // #if _WIN32
-  b32 is_initialized;
-};
-
 #if _WIN32
 
 #define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+#include <windows.h>              // OpenProces VirtualAlloc VirtualFree
+
+#endif // #if _WIN32
+
+// --------------------------------------
+// Perf counters
+// --------------------------------------
+
+#if _WIN32
+#include <psapi.h>                // GetProcessMemoryInfo GetCurrentProcessId
+
+struct os_metrics {
+  HANDLE process_handle;
+  b32 is_initialized;
+};
+
+struct os s_os;
+
+b32 os_init(void)
+{
+  if(!s_os.is_initialized) {
+    s_os.process_handle = OpenProcess(
+        PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
+        FALSE,
+        GetCurrentProcessId());
+    s.os.is_initialized = s_os.process_handle != 0;
+  }
+  return s_os.is_initialized;
+}
 
 u64 os_read_page_fault_count(void) {
-  return -1;
+  PROCESS_MEMORY_COUNTERS_EX pmc = {
+    .cb = sizeof(pmc);
+  };
+  GetProcessMemoryInfo(s_os.process_handle,
+      (PROCESS_MEMORY_COUNTERS *)&pmc, sizeof(pmc));
+  return pmc.PageFaultCount;
 }
 
 #elif __APPLE__
 
-#include <sys/resource.h> // getrusage
+#include <sys/resource.h>         // getrusage
 
 b32 os_init(void) {
   return true;
 }
 
 u64 os_read_page_fault_count(void) {
-  // NOTE: ru_minflt  the number of page faults serviced without any I/O activity.
-  //       ru_majflt  the number of page faults serviced that required I/O activity.
+  // NOTE: ru_minflt  page faults serviced without any I/O activity.
+  //       ru_majflt  page faults serviced that required I/O activity.
   struct rusage rusage = {0};
   getrusage(RUSAGE_SELF, &rusage);
-  return rusage.ru_minflt;
+  return rusage.ru_minflt + rusage.ru_majflt;
 }
 
 #else
@@ -42,6 +66,11 @@ u64 os_read_page_fault_count(void) {
 #include <sys/syscall.h>          // SYS_*
 #include <sys/types.h>            // pid_t
 #include <unistd.h>               // syscall read
+
+struct os {
+  i32 pe_page_fault_fd; // perf event: page faults
+  b32 is_initialized;
+};
 
 struct os s_os;
 
@@ -83,6 +112,53 @@ u64 os_read_page_fault_count(void) {
     }
   }
   return ret;
+}
+
+#endif // #if _WIN32
+
+// --------------------------------------
+// Virtual memory
+// --------------------------------------
+
+#if _WIN32
+
+void *os_virtual_alloc(u64 size) {
+  return VirtualAlloc(0, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+}
+
+b32 os_virtual_free(void *p, u64 size) {
+  return VirtualFree(p, size, MEM_RELEASE);
+}
+
+b32 os_virtual_lock(void *p, u64 size) {
+  // TODO implement me
+  return false;
+}
+
+b32 os_virtual_unlock(void *p, u64 size) {
+  // TODO implement me
+  return false;
+}
+
+#else
+
+#include <sys/mman.h>             // mmap munmap mlock munlock
+
+void *os_virtual_alloc(u64 size) {
+  return mmap(0, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS,
+      -1, 0);
+}
+
+b32 os_virtual_free(void *p, u64 size) {
+  return munmap(p, size) != -1;
+}
+
+b32 os_virtual_lock(void *p, u64 size) {
+  return mlock(p, size) != -1;
+}
+
+b32 os_virtual_unlock(void *p, u64 size) {
+  return munlock(p, size) != -1;
 }
 
 #endif // #if _WIN32
