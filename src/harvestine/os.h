@@ -8,6 +8,9 @@ b32 os_init(void);
 // Read Memory Page Faults counter for this process.
 u64 os_read_page_fault_count(void);
 
+// Get page size
+u64 os_get_page_size(void);
+
 // Reserve virtual memory of size in bytes, no physical pages are allocated.
 // Returns 0 on failure.
 void *os_virtual_alloc(u64 size);

@@ -42,9 +42,15 @@ u64 os_read_page_fault_count(void) {
   return pmc.PageFaultCount;
 }
 
+u64 os_get_page_size(void) {
+  // TODO not implemented
+  return 4 * 1024 * 1024;
+}
+
 #elif __APPLE__
 
 #include <sys/resource.h>         // getrusage
+#include <unistd.h>               // getpagesize
 
 b32 os_init(void) {
   return true;
@@ -58,6 +64,10 @@ u64 os_read_page_fault_count(void) {
   return rusage.ru_minflt + rusage.ru_majflt;
 }
 
+u64 os_get_page_size(void) {
+  return getpagesize();
+}
+
 #else
 
 #include <linux/hw_breakpoint.h>  // HW_*
@@ -65,7 +75,7 @@ u64 os_read_page_fault_count(void) {
 #include <sys/ioctl.h>            // ioctl
 #include <sys/syscall.h>          // SYS_*
 #include <sys/types.h>            // pid_t
-#include <unistd.h>               // syscall read
+#include <unistd.h>               // syscall read getpagesize
 
 struct os {
   i32 pe_page_fault_fd; // perf event: page faults
@@ -112,6 +122,10 @@ u64 os_read_page_fault_count(void) {
     }
   }
   return ret;
+}
+
+u64 os_get_page_size(void) {
+  return getpagesize();
 }
 
 #endif // #if _WIN32
