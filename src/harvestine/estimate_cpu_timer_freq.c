@@ -32,15 +32,15 @@ int main(int argc, char **argv) {
   u64 time_to_run_ms = atol(argv[1]);
 
   u64 os_timer_freq = get_os_timer_freq();
-  printf("OS timer frequency:                   %luf (%.2fMHz)\n",
+  printf("OS timer frequency:                   %lluf (%.2fMHz)\n",
       os_timer_freq, os_timer_freq * 1e-6f);
 
   u64 estimated_cpu_timer_freq = estimate_cpu_timer_freq(time_to_run_ms);
-  printf("Estimated CPU timer frequency:        %luf (%.2fMHz)\n",
+  printf("Estimated CPU timer frequency:        %lluf (%.2fMHz)\n",
       estimated_cpu_timer_freq, estimated_cpu_timer_freq * 1e-6f);
 
   u64 cpu_timer_freq = get_cpu_timer_freq();
-  printf("CPU timer frequency from the system:  %luf (%.2fMHz)\n",
+  printf("CPU timer frequency from the system:  %lluf (%.2fMHz)\n",
       cpu_timer_freq, cpu_timer_freq * 1e-6f);
 
   return 0;

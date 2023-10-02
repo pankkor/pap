@@ -56,7 +56,7 @@ u64 file_read(const char *filepath, u8 *buf, u64 buf_size) {
   if (file_size > buf_size) {
     fprintf(stderr,
         "Error: binary file is too big to be loaded into the buffer. File size:"
-        "%ld bytes, buffer size: %lu bytes\n", file_size, buf_size);
+        "%lld bytes, buffer size: %llu bytes\n", file_size, buf_size);
     goto file_read_failed;
   }
 

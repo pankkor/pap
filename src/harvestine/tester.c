@@ -122,8 +122,8 @@ static void tester_values_print(const char *label, struct tester_values values,
 
   fprintf(
       stderr,
-      csv ? "%s,%lu,%f,%f,%f,%f\n"
-          : "%-10s|%10lu|%10.4f|%10.4f|%10.4f|%10.4f\n",
+      csv ? "%s,%llu,%f,%f,%f,%f\n"
+          : "%-10s|%10llu|%10.4f|%10.4f|%10.4f|%10.4f\n",
       label, tsc, ms, gb_p_sec, mem_pf, kb_p_mem_pf);
 }
 
@@ -167,7 +167,7 @@ void tester_print(struct tester *tester, u64 cpu_timer_freq) {
         }
       }
 
-      fprintf(stderr, "%-24s%-4lu\n",
+      fprintf(stderr, "%-24s%-4llu\n",
           "Steps taken: ", tester->stats.total.e[TESTER_VALUE_STEP_COUNT]);
 
       b32 is_csv = false;

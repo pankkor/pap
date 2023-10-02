@@ -90,10 +90,10 @@ static void profiler_print_zone(struct profiler_zone *pf, u64 total_tsc,
   f32 gb_p_sec      = (f32)pf->bytes / total_sec / (1024 * 1024 * 1024);
 
   fprintf(stderr, csv ?  "%s"   :  "%-30s",  pf->name);
-  fprintf(stderr, csv ? ",%lu"  : "|%9lu",   pf->hit_count);
+  fprintf(stderr, csv ? ",%llu" : "|%9llu",   pf->hit_count);
   fprintf(stderr, csv ? ",%f"   : "|%9.5f",  total_sec);
   fprintf(stderr, csv ? ",%f"   : "|%6.2f",  total_percent);
-  fprintf(stderr, csv ? ",%lu"  : "|%11lu",  pf->self_tsc);
+  fprintf(stderr, csv ? ",%llu" : "|%11llu",  pf->self_tsc);
   fprintf(stderr, csv ? ",%f"   : "|%9.5f",  self_sec);
   fprintf(stderr, csv ? ",%f"   : "|%6.2f",  self_percent);
   fprintf(stderr, csv ? ",%f"   : "|%7.2f",  mb);
@@ -118,7 +118,7 @@ void profiler_print_stats(u64 cpu_timer_freq, b32 csv) {
 
     fprintf(stderr, "%-24s", "Total time: ");
     if (total_tsc) {
-      fprintf(stderr, "%-12lu (%9.5f sec)\n", total_tsc, total_sec);
+      fprintf(stderr, "%-12llu (%9.5f sec)\n", total_tsc, total_sec);
     } else {
       fprintf(stderr, "??? [!] profiler_begin() / profiler_end() not called\n");
     }

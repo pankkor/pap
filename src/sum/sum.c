@@ -15,12 +15,12 @@
 #error Unsupported architecture
 #endif
 
-typedef int           i32;
-typedef unsigned int  u32;
-typedef long          i64;
-typedef unsigned long u64;
-typedef float         f32;
-typedef double        f64;
+typedef int                 i32;
+typedef unsigned int        u32;
+typedef long long           i64;
+typedef unsigned long long  u64;
+typedef float               f32;
+typedef double              f64;
 
 #define BENCH_ESCAPE(p) __asm__ volatile("" : : "m"(p) : "memory")
 #define BENCH_CLOBBER() __asm__ volatile("" : : : "memory")
@@ -421,17 +421,17 @@ int main(int argc, char **argv) {
   if (argc >= 2) {
     s_arr_size = atoi(argv[1]);
     if (s_arr_size > ARR_CAPACITY) {
-      fprintf(stderr, "Array size of '%ld' is too big.\n", s_arr_size);
+      fprintf(stderr, "Array size of '%lld' is too big.\n", s_arr_size);
       return 1;
     }
   }
 
   s_tsc_freq = get_tsc_freq();
 
-  printf("Time Stamp Counter freq     %ldHz (%.0fMHz)\n",
+  printf("Time Stamp Counter freq     %lldHz (%.0fMHz)\n",
       s_tsc_freq, s_tsc_freq * 1e-6);
 
-  printf("Array size                  %ld\n", s_arr_size);
+  printf("Array size                  %lld\n", s_arr_size);
   printf("\nBenchmarks\n");
 
   // touch array and assign some values to it

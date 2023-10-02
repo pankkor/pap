@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
   u64 os_page_size_kb = os_get_page_size() / 1024;
 
   u64 page_count      = argc > 1 ? atol(argv[1]) : 1024;
-  u64 page_size_kb    = argc > 2 ? atol(argv[2]) : os_page_size_kb;
+  u64 page_size_kb    = argc > 2 ? atol(argv[2]) : (i64)os_page_size_kb;
   b32 lock_in_ram     = argc > 3 ? atoi(argv[3]) : false;
 
   u64 page_size_b     = page_size_kb * 1024;
@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
     // no need for os_virtiual_unlock()
     os_virtual_free(buf, mem_size);
 
-    printf("%lu, %lu, %lu, %lu, %ld\n",
+    printf("%llu, %llu, %llu, %llu, %lld\n",
         page_count, page_size_kb, touch_p_count, pf_count, extra_pf_count);
   }
 

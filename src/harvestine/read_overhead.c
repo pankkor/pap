@@ -224,7 +224,7 @@ int main(int argc, char **argv) {
   u64 number_of_runs = (u64)-1; // run tests forever
   for (u64 run_index = 0; run_index < number_of_runs; ++run_index) {
     fprintf(stderr, "------------------------------------------------------\n");
-    fprintf(stderr, "RUN %-20lu\n", run_index);
+    fprintf(stderr, "RUN %-20llu\n", run_index);
     fprintf(stderr, "------------------------------------------------------\n");
 
     // for all tests
