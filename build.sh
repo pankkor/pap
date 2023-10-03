@@ -61,6 +61,7 @@ src/harvestine/estimate_cpu_timer_freq.c
 src/harvestine/gen_harvestine.c
 src/harvestine/harvestine.c
 src/harvestine/pf_counter.c
+src/harvestine/ptr_anatomy.c
 src/harvestine/read_overhead.c
 src/sim86/sim86.c
 src/sum/sum.c

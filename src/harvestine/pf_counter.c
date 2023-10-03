@@ -1,10 +1,15 @@
+// Performance-Aware-Programming Course
+// https://www.computerenhance.com/p/table-of-contents
+//
+// Part 3
+// Page fault test counter
+
 #include <stdio.h>      // printf perror stderr
 #include <string.h>     // string
 #include <stdlib.h>     // atol
 
 #include "types.h"
 #include "os.h"
-#include "tester.h"
 
 // Begin unity build
 #include "os.c"
@@ -17,7 +22,7 @@ static void print_usage(void) {
   fprintf(stderr,
     "Virtual alloc memory, touch it and calculate page faults.\n"
     "Usage:\n"
-    "    pf_counter [page_count=1024] [page_size_kb=4] [lock_in_ram=0]\n");
+    "    pf_counter [page_count=1024] [page_size_kb=native] [lock_in_ram=0]\n");
 }
 
 int main(int argc, char **argv) {

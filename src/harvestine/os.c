@@ -159,8 +159,7 @@ b32 os_virtual_unlock(void *p, u64 size) {
 #include <sys/mman.h>             // mmap munmap mlock munlock
 
 void *os_virtual_alloc(u64 size) {
-  return mmap(0, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS,
-      -1, 0);
+  return mmap(0, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
 }
 
 b32 os_virtual_free(void *p, u64 size) {

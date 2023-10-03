@@ -88,7 +88,7 @@ case "$1" in
     ;;
   # Simply forward arguments to test app
   # NOTE: Beware of non escaped args
-  sum|cp_rect|str_cpy|has_color|draw_circle|pf_counter)
+  sum|cp_rect|str_cpy|has_color|draw_circle|pf_counter|ptr_anatomy)
     cmd="./build/$@"
     echo "build/$1" | entr -cs "echo 'Running: $cmd'; $cmd"
     ;;
