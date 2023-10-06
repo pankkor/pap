@@ -16,93 +16,6 @@
 #include "os.c"
 // End unity build
 
-
-// // TODO: it's x86_64 anatomy, might not me right for Aarch64
-// struct addr_anatomy {
-//     u16 unused;
-//     u16 pml4;
-//     u16 directory_ptr;
-//     u16 directory;
-//     u16 table;
-//     u32 offset;
-// };
-//
-// static struct addr_anatomy addr_anatomy_from_ptr_4k(void *p) {
-//   struct addr_anatomy ret;
-//   u64 addr = (u64)p;
-//
-//   ret.unused        = (addr >> 48) & 0xffff;
-//   ret.pml4          = (addr >> 39) & 0x1ff;
-//   ret.directory_ptr = (addr >> 30) & 0x1ff;
-//   ret.directory     = (addr >> 21) & 0x1ff;
-//   ret.table         = (addr >> 12) & 0x1ff;
-//   ret.offset        = (addr >>  0) & 0xfff;
-//
-//   return ret;
-// }
-//
-// static struct addr_anatomy addr_anatomy_from_ptr_16k(void *p) {
-//   struct addr_anatomy ret;
-//   u64 addr = (u64)p;
-//
-//   ret.unused        = (addr >> 51) & 0xffff;
-//   ret.pml4          = (addr >> 41) & 0x1ff;
-//   ret.directory_ptr = (addr >> 32) & 0x1ff;
-//   ret.directory     = (addr >> 23) & 0x1ff;
-//   ret.table         = (addr >> 14) & 0x1ff;
-//   ret.offset        = (addr >>  0) & 0x3fff;
-//
-//   return ret;
-// }
-//
-// struct addr_anatomy_format {
-//   u8 e[6];
-// };
-//
-// static void print_addr_anatomy(struct addr_anatomy *aa) {
-//    printf("|%16u|%9u|%9u|%9u|%9u|%12u|",
-//        aa->unused, aa->pml4, aa->directory_ptr, aa->directory, aa->table,
-//        aa->offset);
-// }
-//
-// static void print_addr_anatomy_fmt(struct addr_anatomy *aa,
-//     struct addr_anatomy_format fmt) {
-//    // printf("|%16u|%9u|%9u|%9u|%9u|%12u|",
-//    //     aa->unused, aa->pml4, aa->directory_ptr, aa->directory, aa->table,
-//    //     aa->offset);
-//
-//    printf("%*u|", fmt.e[0], aa->unused);
-//    printf("%*u|", fmt.e[1], aa->pml4);
-//    printf("%*u|", fmt.e[2], aa->directory_ptr);
-//    printf("%*u|", fmt.e[3], aa->directory);
-//    if (fmt.e[4]) {
-//      printf("%*u|", fmt.e[4], aa->table);
-//    } else {
-//      printf("|");
-//    }
-//    printf("%*u|", fmt.e[5], aa->offset);
-//    printf("\n");
-// }
-//
-// static void print_binary(u64 v, u32 first_bit, u32 bit_count) {
-//   for (u32 i = first_bit + bit_count; i-- > first_bit;) {
-//     u64 bit = (v >> i) & 1;
-//     printf("%c", bit ? '1' : '0');
-//   }
-// }
-//
-// static void print_binary_fmt(u64 v, struct addr_anatomy_format fmt) {
-//   u32 bit_left = 64;
-//   for (u32 i = 0; i < ARRAY_COUNT(fmt.e); ++i) {
-//     u8 bit_count = fmt.e[i];
-//     u32 bit_index = bit_left - bit_count;
-//     bit_left = bit_index;
-//     print_binary(v, bit_index, bit_count);
-//     printf("|");
-//   }
-//   printf("\n");
-// }
-
 // --------------------------------------
 // Address anatomy
 // --------------------------------------
@@ -123,67 +36,57 @@ struct addr_anatomy_labels {
   const char *e[ADDR_ANATOMY_CHUNK_COUNT];
 };
 
-struct addr_anatomy2 {
+// Decoded pointer address according to address chunks
+struct addr_anatomy {
   struct addr_anatomy_chunks      chunks;
   struct addr_anatomy_bit_counts  bit_counts; // 0 bits = empty chunk
-  u64 addr;
+  u64                             addr;
 };
 
-static struct addr_anatomy_labels s_x86_64_labels = {
-  "unused", "pml4", "dir_ptr", "directory", "table", "offset"
-};
-
-static struct addr_anatomy_bit_counts s_x86_64_4kb_bit_counts = {
-  16, 9, 9, 9, 9, 12,
-};
-
-static struct addr_anatomy_bit_counts s_x86_64_2mb_bit_counts = {
-  16, 9, 9, 9, 0, 21,
-};
-
-static struct addr_anatomy2 addr_anatomy_from_bit_counts(void *p,
+static struct addr_anatomy addr_anatomy_from_bit_counts(void *p,
     struct addr_anatomy_bit_counts bit_counts) {
   u64 addr = (u64)p;
 
-  struct addr_anatomy2 ret = {
+  struct addr_anatomy ret = {
     .bit_counts = bit_counts,
     .addr = addr,
   };
 
+  u32 top = 64;
   for (u32 i = 0; i < ADDR_ANATOMY_CHUNK_COUNT; ++i) {
     u8 bit_count = bit_counts.e[i];
-    if (!bit_count) {
-      continue;
+    if (bit_count) {
+      top -= bit_count;
+      ret.chunks.e[i] = (addr >> top) & ((1LLU << bit_count) - 1);
     }
-    ret.chunks.e[i] = (addr >> (64 - bit_count)) & ((1 << bit_count) - 1);
   }
 
   return ret;
 }
 
-static void print_addr_anatomy2_values(struct addr_anatomy2 aa) {
+static void print_addr_anatomy_values(struct addr_anatomy aa, b32 hex) {
   for (u32 i = 0; i < ADDR_ANATOMY_CHUNK_COUNT; ++i) {
     u8 bit_count = aa.bit_counts.e[i];
     if (bit_count) {
-      printf("%*u|", aa.bit_counts.e[i], aa.chunks.e[i]);
-    } else {
-      printf("|");
+      printf(hex ? "%*x|" :"%*u|", aa.bit_counts.e[i], aa.chunks.e[i]);
     }
   }
   printf("\n");
 }
 
-static void print_addr_anatomy2_binary(struct addr_anatomy2 aa) {
-  u32 left = 64;
+static void print_addr_anatomy_binary(struct addr_anatomy aa) {
+  u32 top = 64;
   for (u32 i = 0; i < ADDR_ANATOMY_CHUNK_COUNT; ++i) {
     u8 bit_count = aa.bit_counts.e[i];
-    u32 right = left - bit_count;
-
-    for (; left-- > right;) {
-      u64 bit = aa.addr & (1 << left);
-      printf("%c", bit ? '1' : '0');
+    if (bit_count) {
+      u32 bottom = top - bit_count;
+      for (; top > bottom;) {
+        --top;
+        u64 bit = aa.addr >> top & 1;
+        printf("%c", bit ? '1' : '0');
+      }
+      printf("|");
     }
-    printf("|");
   }
   printf("\n");
 }
@@ -194,12 +97,41 @@ static void print_addr_anatomy_labels(struct addr_anatomy_bit_counts bit_counts,
     u8 bit_count = bit_counts.e[i];
     if (bit_count) {
       printf("%*s|", bit_counts.e[i], labels.e[i]);
-    } else {
-      printf("|");
     }
   }
   printf("\n");
 }
+
+// --------------------------------------
+// Dissect runs
+// --------------------------------------
+struct dissect {
+  struct addr_anatomy_labels      labels;
+  struct addr_anatomy_bit_counts  bit_counts;
+  const char                      *message;
+};
+
+static struct dissect s_dissects[] = {
+  #if defined(__x86_64__)
+  {
+    .labels = { "unused", "pml4", "dir_ptr", "directory", "table", "offset" },
+    .bit_counts = { 16, 9, 9, 9, 9, 12, },
+    .message = "x86_64 with 4KB pages"
+  },
+  {
+    .labels = { "unused", "pml4", "dir_ptr", "directory", "table", "offset" },
+    .bit_counts = { 16, 9, 9, 9, 0, 21, },
+    .message = "x86_64 with 2MB pages"
+  },
+  {
+    .labels = { "unused", "pml4", "dir_ptr", "directory", "table", "offset" },
+    .bit_counts = { 16, 9, 9, 0, 0, 30, },
+    .message = "x86_64 with 1GB pages"
+  },
+  #else
+  #error not implemented
+  #endif // #if defined(__x86_64__)
+};
 
 // --------------------------------------
 // Main
@@ -227,24 +159,26 @@ int main(int argc, char **argv) {
         "Failed to initialize performance counters. Try with super user.");
   }
 
+  void *prev_p = 0;
   for (u64 i = 0; i < alloc_count; ++i) {
     void *p = os_virtual_alloc(alloc_size_b);
-    printf("Allocated %p\n", p);
-    print_addr_anatomy_labels(s_x86_64_4kb_bit_counts, s_x86_64_labels);
-
-    struct addr_anatomy2 x86_64_4k_aa
-      = addr_anatomy_from_bit_counts(p, s_x86_64_4kb_bit_counts);
-    print_addr_anatomy2_binary(x86_64_4k_aa);
-    print_addr_anatomy2_values(x86_64_4k_aa);
-
+    i64 offset = (u64)p - (u64)prev_p;
+    prev_p = p;
+    printf("---------------------------------------------------------------\n");
+    printf("Allocated address:  %p (%llu)\n", p, (u64)p);
+    printf("Offset from prev:   %lld\n", offset);
     printf("\n");
 
-    struct addr_anatomy2 x86_64_2mb_aa
-      = addr_anatomy_from_bit_counts(p, s_x86_64_2mb_bit_counts);
-    print_addr_anatomy2_binary(x86_64_2mb_aa);
-    print_addr_anatomy2_values(x86_64_2mb_aa);
-
-    printf("\n");
+    for (u64 dissect_i = 0; dissect_i < ARRAY_COUNT(s_dissects); ++dissect_i) {
+      struct dissect *d = &s_dissects[dissect_i];
+      printf("%s\n", d->message);
+      struct addr_anatomy aa = addr_anatomy_from_bit_counts(p, d->bit_counts);
+      print_addr_anatomy_labels(d->bit_counts, d->labels);
+      print_addr_anatomy_binary(aa);
+      print_addr_anatomy_values(aa, true);
+      print_addr_anatomy_values(aa, false);
+      printf("\n");
+    }
   }
 
   // NOTE: leak, no os_virtual_free() for brevity
