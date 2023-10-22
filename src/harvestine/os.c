@@ -137,6 +137,10 @@ u64 os_get_page_size(void) {
 // Virtual memory
 // --------------------------------------
 
+static u64 align(u64 v, u64 alignment) {
+  return (v + alignment -1) & ~(alignment - 1);
+}
+
 #if _WIN32
 
 void *os_virtual_alloc(u64 size) {
@@ -192,18 +196,32 @@ void os_print_last_error(const char *msg) {
 #else
 
 #include <sys/mman.h>             // mmap munmap mlock munlock
+
+#if __APPLE__
 #include <mach/mach_vm.h>
+#else
+#include <linux/mman.h>           // MAP_HUGE_2MB
+#endif // #if __APPLE__
 
 void *os_virtual_alloc(u64 size) {
   void *m;
-  m = mmap(0, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+  int flags = MAP_PRIVATE | MAP_ANON;
+#if __linux__
+  // NOTE: MAP_POPULATE prefaults pages, only supported on Linux
+  flags |= MAP_POPULATE;
+#endif // #if __linux__
+  m = mmap(0, size, PROT_READ | PROT_WRITE, flags, -1, 0);
   // NOTE: VirtualAlloc() returns 0 on failure and mmap() returns -1.
   // 0 is a valid mmap address, but it's easier to test for 0 in user code.
   assert(m && "mmap returned valid 0 address");
   return m == MAP_FAILED ? 0 : m;
 }
 
-void *os_virtual_large_alloc(u64 size) {
+void *os_virtual_large_alloc(u64 *out_size) {
+  // Ensure allocated size is multiple of 2MB page size
+  // TODO: Linux has support for 1GB page sizes
+  u64 size = align(*out_size, 2 * 1024 * 1024);
+
   void *m;
 #if __APPLE__
 #ifndef __x86_64__
@@ -213,12 +231,17 @@ void *os_virtual_large_alloc(u64 size) {
   m = mmap(0, size, PROT_READ | PROT_WRITE,
       MAP_PRIVATE | MAP_ANON, VM_FLAGS_SUPERPAGE_SIZE_2MB, 0);
 #else
+  // NOTE: MAP_POPULATE prefaults pages, only supported on Linux
   m = mmap(0, size, PROT_READ | PROT_WRITE,
-      MAP_PRIVATE | MAP_ANON | MAP_HUGETLB | MAP_POPULATE, -1, 0);
+      MAP_PRIVATE | MAP_ANON | MAP_HUGETLB | MAP_POPULATE | MAP_HUGE_2MB,
+      -1, 0);
 #endif // #if __APPLE__
   // NOTE: VirtualAlloc() returns 0 on failure and mmap() returns -1.
   // 0 is a valid mmap address, but it's easier to test for 0 in user code.
   assert(m && "mmap returned valid 0 address");
+  if (m != MAP_FAILED) {
+    *out_size = size;
+  }
   return m == MAP_FAILED ? 0 : m;
 }
 
@@ -237,5 +260,6 @@ b32 os_virtual_unlock(void *p, u64 size) {
 void os_print_last_error(const char *msg) {
   perror(msg);
 }
+
 
 #endif // #if _WIN32

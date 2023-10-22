@@ -17,10 +17,15 @@ void *os_virtual_alloc(u64 size);
 
 // Reserve virtual memory of size in bytes, no physical pages are allocated.
 // Use Large Pages (aka Linux: Huge Pages, maxOS: Super Pages)
+// Writes allocated size multiple of to page size back to `out_size`
 // Returns 0 on failure.
-void *os_virtual_large_alloc(u64 size);
+void *os_virtual_large_alloc(u64 *out_size);
+
+u64 os_get_large_page_size(void);
 
 // Release virtual memory of size in bytes.
+// It's necessary to pass the size according to page size alignment
+// Pass the size that was returned to you by os_virtual_lorge_alloc()
 // Returns false on failure.
 b32 os_virtual_free(void *p, u64 size);
 

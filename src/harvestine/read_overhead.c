@@ -64,7 +64,7 @@ static void do_allocation(enum alloc_type alloc_type, struct buf_u8 *buf) {
       buf->data = (u8 *)os_virtual_alloc(buf->size);
       break;
     case ALLOC_TYPE_VIRTUAL_LARGE_ALLOC:
-      buf->data = (u8 *)os_virtual_large_alloc(buf->size);
+      buf->data = (u8 *)os_virtual_large_alloc(&buf->size);
       break;
     case ALLOC_TYPE_COUNT:
       assert(0 && "Unknown allocation type");
@@ -73,43 +73,49 @@ static void do_allocation(enum alloc_type alloc_type, struct buf_u8 *buf) {
   }
 }
 
-static void do_free(enum alloc_type alloc_type, struct buf_u8 *buf) {
+static b32 do_free(enum alloc_type alloc_type, struct buf_u8 *buf) {
   switch (alloc_type) {
     case ALLOC_TYPE_NONE:
-      break;
+      return true;
     case ALLOC_TYPE_MALLOC:
       free(buf->data);
       buf->data = 0;
-      break;
+      return true;
     case ALLOC_TYPE_VIRTUAL_ALLOC:
-    case ALLOC_TYPE_VIRTUAL_LARGE_ALLOC:
-      os_virtual_free(buf->data, buf->size);
+    case ALLOC_TYPE_VIRTUAL_LARGE_ALLOC: {
+      b32 res = os_virtual_free(buf->data, buf->size);
       buf->data = 0;
-      break;
+      return res;
+    }
     case ALLOC_TYPE_COUNT:
       assert(0 && "Unknown allocation type");
       abort();
-      break;
   }
+  return false;
 }
 
 static void test_write_all(struct tester *tester, enum alloc_type alloc_type,
     struct test_param *param) {
   struct buf_u8 buf = param->buf;
+  u64 touch_size    = param->buf.size;
 
   while (tester_step(tester)) {
     do_allocation(alloc_type, &buf);
     if (buf.data) {
-      tester_zone_begin(tester); for (u64 i = 0; i < buf.size; ++i) {
+      tester_zone_begin(tester);
+      for (u64 i = 0; i < touch_size; ++i) {
         buf.data[i] = (u8)i; // write something
       }
       tester_zone_end(tester);
 
-      tester_count_bytes(tester, buf.size);
+      tester_count_bytes(tester, touch_size);
 
-      do_free(alloc_type, &buf);
+      if (!do_free(alloc_type, &buf)) {
+        os_print_last_error("Error: memory free failed");
+        tester_error(tester, "Error: memory free failed");
+      }
     } else {
-      os_print_last_error("mmap() failed");
+      os_print_last_error("Error: memory allocation failed");
       tester_error(tester, "Error: memory allocation failed");
     }
   }
@@ -118,17 +124,18 @@ static void test_write_all(struct tester *tester, enum alloc_type alloc_type,
 static void test_write_all_backwards(struct tester *tester,
     enum alloc_type alloc_type, struct test_param *param) {
   struct buf_u8 buf = param->buf;
+  u64 touch_size    = param->buf.size;
 
   while (tester_step(tester)) {
     do_allocation(alloc_type, &buf);
     if (buf.data) {
       tester_zone_begin(tester);
-      for (u64 i = buf.size; i--;) {
+      for (u64 i = touch_size; i--;) {
         buf.data[i] = (u8)i; // write something
       }
       tester_zone_end(tester);
 
-      tester_count_bytes(tester, buf.size);
+      tester_count_bytes(tester, touch_size);
 
       do_free(alloc_type, &buf);
     } else {
@@ -141,6 +148,7 @@ static void test_write_all_backwards(struct tester *tester,
 static void test_fread(struct tester *tester, enum alloc_type alloc_type,
     struct test_param *param) {
   struct buf_u8 buf     = param->buf;
+  u64 touch_size        = param->buf.size;
   const char *filepath  = param->filepath;
   FILE *f = 0;
   int err = 0;
@@ -155,10 +163,10 @@ static void test_fread(struct tester *tester, enum alloc_type alloc_type,
     do_allocation(alloc_type, &buf);
     if (buf.data) {
       tester_zone_begin(tester);
-      err = fread(buf.data, 1, buf.size, f) != buf.size;
+      err = fread(buf.data, 1, touch_size, f) != touch_size;
       tester_zone_end(tester);
 
-      tester_count_bytes(tester, buf.size);
+      tester_count_bytes(tester, touch_size);
 
       do_free(alloc_type, &buf);
     } else {
@@ -185,8 +193,8 @@ struct test
 static struct test s_tests[] =
 {
   {"test_write_all", test_write_all},
-  /* {"test_write_all_backwards", test_write_all_backwards}, */
-  /* {"test_fread", test_fread}, */
+  {"test_write_all_backwards", test_write_all_backwards},
+  {"test_fread", test_fread},
 };
 
 // --------------------------------------
@@ -266,6 +274,7 @@ int main(int argc, char **argv) {
 
       // for all allocation types
       for (i64 alloc_type = 0; alloc_type < ALLOC_TYPE_COUNT; ++alloc_type) {
+      // for (i64 alloc_type = 0; alloc_type < ALLOC_TYPE_COUNT; ++alloc_type) {
         struct tester *tester = &testers[test_index][alloc_type];
         tester->run = (struct tester_run){0};
 
