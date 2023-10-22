@@ -114,22 +114,39 @@ struct dissect {
 static struct dissect s_dissects[] = {
   #if defined(__x86_64__)
   {
-    .labels = { "unused", "pml4", "dir_ptr", "directory", "table", "offset" },
-    .bit_counts = { 16, 9, 9, 9, 9, 12, },
+    .labels = {"unused", "pml4", "dir_ptr", "directory", "table", "offset"},
+    .bit_counts = { 16, 9, 9, 9, 9, 12},
     .message = "x86_64 with 4KB pages"
   },
   {
-    .labels = { "unused", "pml4", "dir_ptr", "directory", "table", "offset" },
-    .bit_counts = { 16, 9, 9, 9, 0, 21, },
+    .labels = {"unused", "pml4", "dir_ptr", "directory", "table", "offset"},
+    .bit_counts = { 16, 9, 9, 9, 0, 21},
     .message = "x86_64 with 2MB pages"
   },
   {
-    .labels = { "unused", "pml4", "dir_ptr", "directory", "table", "offset" },
-    .bit_counts = { 16, 9, 9, 0, 0, 30, },
+    .labels = {"unused", "pml4", "dir_ptr", "directory", "table", "offset"},
+    .bit_counts = { 16, 9, 9, 0, 0, 30},
     .message = "x86_64 with 1GB pages"
   },
-  #else
-  #error not implemented
+  #elif defined(__aarch64__)
+  // Aarch64 XNU
+  // See details in Apple XNU repo at xnu/osfmk/arm64/proc_reg.h
+  // (Search for "ARM_16K_TT_L0_INDEX_MASK")
+
+  // Label "0" stands for TTL0, "Translation Table Level 0", otherwise
+  // it doesn't fit the alignment of 1 bit
+  {
+    .labels = {"unused", "0", "TTL1", "TTL2", "TTL3", "offset"},
+    .bit_counts = { 16, 9, 9, 9, 9, 12},
+    .message = "AArch64 with 4KB pages"
+  },
+  // TTL0 - 2 tables, TTB0 - user, TTB1 - kernel
+  // TTL1 - only use the lowers 3 bits if built without 512GB TTBR support
+  {
+    .labels = {"unused", "0", "TTL1", "TTL2", "TTL3", "offset"},
+    .bit_counts = {16, 1, 11, 11, 11, 14},
+    .message = "AArch64 with 16KB pages"
+  },
   #endif // #if defined(__x86_64__)
 };
 
