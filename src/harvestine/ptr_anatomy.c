@@ -171,7 +171,7 @@ int main(int argc, char **argv) {
   u64 alloc_count     = argc > 1 ? atol(argv[1]) : 8;
   u64 alloc_size_b    = argc > 2 ? atol(argv[2]) : (i64)os_page_size_b;
 
-  if (!os_init()) {
+  if (!os_perf_init()) {
     fprintf(stderr,
         "Failed to initialize performance counters. Try with super user.");
   }

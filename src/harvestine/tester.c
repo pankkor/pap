@@ -23,7 +23,7 @@ b32 tester_step(struct tester *tester) {
       tester->run.begin_tsc = current_tsc;
       tester->run.state = TESTER_STATE_RUNNING;
 
-      if (!os_init()) {
+      if (!os_perf_init()) {
         tester_error(tester,
             "Failed to initialize performance counters. Try with super user.");
       }

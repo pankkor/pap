@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  if (!os_init()) {
+  if (!os_perf_init()) {
     fprintf(stderr,
         "Failed to initialize performance counters. Try with super user.");
   }

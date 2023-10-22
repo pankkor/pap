@@ -2,7 +2,7 @@
 // https://www.computerenhance.com/p/table-of-contents
 //
 // Part 3
-// Read overhead
+// Profile read overhead
 
 #include <assert.h>     // assert
 #include <stdio.h>      // fprintf fopen fread stderr
@@ -36,15 +36,19 @@ struct test_param {
 enum alloc_type {
   ALLOC_TYPE_NONE,
   ALLOC_TYPE_MALLOC,
+  ALLOC_TYPE_VIRTUAL_ALLOC,
+  ALLOC_TYPE_VIRTUAL_LARGE_ALLOC,
 
   ALLOC_TYPE_COUNT,
 };
 
 const char * alloc_type_to_cstr(enum alloc_type alloc_type) {
   switch (alloc_type) {
-    case ALLOC_TYPE_NONE:    return "no allocation";
-    case ALLOC_TYPE_MALLOC:  return "malloc";
-    case ALLOC_TYPE_COUNT:   return "<error>";
+    case ALLOC_TYPE_NONE:                 return "no allocation";
+    case ALLOC_TYPE_MALLOC:               return "malloc";
+    case ALLOC_TYPE_VIRTUAL_ALLOC:        return "virtual_alloc";
+    case ALLOC_TYPE_VIRTUAL_LARGE_ALLOC:  return "virtual_large_alloc";
+    case ALLOC_TYPE_COUNT:                return "<error>";
   }
   return "";
 }
@@ -55,6 +59,12 @@ static void do_allocation(enum alloc_type alloc_type, struct buf_u8 *buf) {
       break;
     case ALLOC_TYPE_MALLOC:
       buf->data = (u8 *)malloc(buf->size);
+      break;
+    case ALLOC_TYPE_VIRTUAL_ALLOC:
+      buf->data = (u8 *)os_virtual_alloc(buf->size);
+      break;
+    case ALLOC_TYPE_VIRTUAL_LARGE_ALLOC:
+      buf->data = (u8 *)os_virtual_large_alloc(buf->size);
       break;
     case ALLOC_TYPE_COUNT:
       assert(0 && "Unknown allocation type");
@@ -71,6 +81,11 @@ static void do_free(enum alloc_type alloc_type, struct buf_u8 *buf) {
       free(buf->data);
       buf->data = 0;
       break;
+    case ALLOC_TYPE_VIRTUAL_ALLOC:
+    case ALLOC_TYPE_VIRTUAL_LARGE_ALLOC:
+      os_virtual_free(buf->data, buf->size);
+      buf->data = 0;
+      break;
     case ALLOC_TYPE_COUNT:
       assert(0 && "Unknown allocation type");
       abort();
@@ -84,17 +99,19 @@ static void test_write_all(struct tester *tester, enum alloc_type alloc_type,
 
   while (tester_step(tester)) {
     do_allocation(alloc_type, &buf);
+    if (buf.data) {
+      tester_zone_begin(tester); for (u64 i = 0; i < buf.size; ++i) {
+        buf.data[i] = (u8)i; // write something
+      }
+      tester_zone_end(tester);
 
-    tester_zone_begin(tester);
-    for (u64 i = 0; i < buf.size; ++i) {
-      buf.data[i] = (u8)i; // write something
+      tester_count_bytes(tester, buf.size);
+
+      do_free(alloc_type, &buf);
+    } else {
+      os_print_last_error("mmap() failed");
+      tester_error(tester, "Error: memory allocation failed");
     }
-    tester_zone_end(tester);
-
-    tester_count_bytes(tester, buf.size);
-
-    do_free(alloc_type, &buf);
-
   }
 }
 
@@ -104,17 +121,20 @@ static void test_write_all_backwards(struct tester *tester,
 
   while (tester_step(tester)) {
     do_allocation(alloc_type, &buf);
+    if (buf.data) {
+      tester_zone_begin(tester);
+      for (u64 i = buf.size; i--;) {
+        buf.data[i] = (u8)i; // write something
+      }
+      tester_zone_end(tester);
 
-    tester_zone_begin(tester);
-    for (u64 i = buf.size; i--;) {
-      buf.data[i] = (u8)i; // write something
+      tester_count_bytes(tester, buf.size);
+
+      do_free(alloc_type, &buf);
+    } else {
+      os_print_last_error("mmap() failed");
+      tester_error(tester, "Error: memory allocation failed");
     }
-    tester_zone_end(tester);
-
-    tester_count_bytes(tester, buf.size);
-
-    do_free(alloc_type, &buf);
-
   }
 }
 
@@ -133,14 +153,18 @@ static void test_fread(struct tester *tester, enum alloc_type alloc_type,
     }
 
     do_allocation(alloc_type, &buf);
+    if (buf.data) {
+      tester_zone_begin(tester);
+      err = fread(buf.data, 1, buf.size, f) != buf.size;
+      tester_zone_end(tester);
 
-    tester_zone_begin(tester);
-    err = fread(buf.data, 1, buf.size, f) != buf.size;
-    tester_zone_end(tester);
+      tester_count_bytes(tester, buf.size);
 
-    tester_count_bytes(tester, buf.size);
-
-    do_free(alloc_type, &buf);
+      do_free(alloc_type, &buf);
+    } else {
+      os_print_last_error("mmap() failed");
+      tester_error(tester, "Error: memory allocation failed");
+    }
     fclose(f);
 
     if (err) {
@@ -161,8 +185,8 @@ struct test
 static struct test s_tests[] =
 {
   {"test_write_all", test_write_all},
-  {"test_write_all_backwards", test_write_all_backwards},
-  {"test_fread", test_fread},
+  /* {"test_write_all_backwards", test_write_all_backwards}, */
+  /* {"test_fread", test_fread}, */
 };
 
 // --------------------------------------

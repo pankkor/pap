@@ -3,7 +3,7 @@
 #include "types.h"
 
 // Initialize and start performance events monitoring.
-b32 os_init(void);
+b32 os_perf_init(void);
 
 // Read Memory Page Faults counter for this process.
 u64 os_read_page_fault_count(void);
@@ -14,6 +14,11 @@ u64 os_get_page_size(void);
 // Reserve virtual memory of size in bytes, no physical pages are allocated.
 // Returns 0 on failure.
 void *os_virtual_alloc(u64 size);
+
+// Reserve virtual memory of size in bytes, no physical pages are allocated.
+// Use Large Pages (aka Linux: Huge Pages, maxOS: Super Pages)
+// Returns 0 on failure.
+void *os_virtual_large_alloc(u64 size);
 
 // Release virtual memory of size in bytes.
 // Returns false on failure.

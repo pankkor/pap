@@ -1,5 +1,8 @@
 #include "os.h"
 
+#include <assert.h>               // assert
+#include <stdio.h>                // fprintf perror
+
 #if _WIN32
 
 #define WIN32_LEAN_AND_MEAN
@@ -21,7 +24,7 @@ struct os_metrics {
 
 struct os s_os;
 
-b32 os_init(void)
+b32 os_perf_init(void)
 {
   if(!s_os.is_initialized) {
     s_os.process_handle = OpenProcess(
@@ -52,7 +55,7 @@ u64 os_get_page_size(void) {
 #include <sys/resource.h>         // getrusage
 #include <unistd.h>               // getpagesize
 
-b32 os_init(void) {
+b32 os_perf_init(void) {
   return true;
 }
 
@@ -90,7 +93,7 @@ static i32 perf_event_open(struct perf_event_attr *hw_event, pid_t pid,
   return syscall(__NR_perf_event_open, hw_event, pid, cpu, group_fd, flags);
 }
 
-b32 os_init(void) {
+b32 os_perf_init(void) {
   if (!s_os.is_initialized) {
     struct perf_event_attr pf_attr = {
       .size = sizeof(pf_attr),
@@ -153,13 +156,70 @@ b32 os_virtual_unlock(void *p, u64 size) {
   // TODO implement me
   return false;
 }
+TCHAR *errorMsg = NULL;
+FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | | FORMAT_MESSAGE_ARGUMENT_ARRAY | FORMAT_MESSAGE_ALLOCATE_BUFFER,
+    NULL,openKey, 0, (LPTSTR)&errorMsg,0,NULL);
+
+_tprintf(_T("Error code %i: %s\n"), openKey, errorMsg);
+LocalFree(errorMsg);
+
+// TODO: not tested
+void os_print_last_error(const char *msg) {
+  if (msg) {
+    fprintf(stderr, "%s: ", msg);
+  }
+
+  DWORD error = GetLastError();
+  TCHAR *system_error_msg;
+  b32 res = FormatMessage(
+      FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM
+      | FORMAT_MESSAGE_IGNORE_INSERTS,
+      0,
+      errCode,
+      MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // default language
+      (LPTSTR)&&msg,
+      0,
+      0))
+
+  if (res) {
+    _tfprintf(stderr, _T("%s\n"), system_error_msg, error);
+    LocalFree(errorMsg);
+  } else {
+    fprintf(stderr, "<unknown>\n");
+  }
+}
 
 #else
 
 #include <sys/mman.h>             // mmap munmap mlock munlock
+#include <mach/mach_vm.h>
 
 void *os_virtual_alloc(u64 size) {
-  return mmap(0, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+  void *m;
+  m = mmap(0, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+  // NOTE: VirtualAlloc() returns 0 on failure and mmap() returns -1.
+  // 0 is a valid mmap address, but it's easier to test for 0 in user code.
+  assert(m && "mmap returned valid 0 address");
+  return m == MAP_FAILED ? 0 : m;
+}
+
+void *os_virtual_large_alloc(u64 size) {
+  void *m;
+#if __APPLE__
+#ifndef __x86_64__
+  // XNU has superpage support only on x86_64
+  assert(0 && "Only x86_64 macOS supports 2MB superpages!");
+#endif // #ifndef __x86_64__
+  m = mmap(0, size, PROT_READ | PROT_WRITE,
+      MAP_PRIVATE | MAP_ANON, VM_FLAGS_SUPERPAGE_SIZE_2MB, 0);
+#else
+  m = mmap(0, size, PROT_READ | PROT_WRITE,
+      MAP_PRIVATE | MAP_ANON | MAP_HUGETLB | MAP_POPULATE, -1, 0);
+#endif // #if __APPLE__
+  // NOTE: VirtualAlloc() returns 0 on failure and mmap() returns -1.
+  // 0 is a valid mmap address, but it's easier to test for 0 in user code.
+  assert(m && "mmap returned valid 0 address");
+  return m == MAP_FAILED ? 0 : m;
 }
 
 b32 os_virtual_free(void *p, u64 size) {
@@ -172,6 +232,10 @@ b32 os_virtual_lock(void *p, u64 size) {
 
 b32 os_virtual_unlock(void *p, u64 size) {
   return munlock(p, size) != -1;
+}
+
+void os_print_last_error(const char *msg) {
+  perror(msg);
 }
 
 #endif // #if _WIN32
