@@ -160,12 +160,6 @@ b32 os_virtual_unlock(void *p, u64 size) {
   // TODO implement me
   return false;
 }
-TCHAR *errorMsg = NULL;
-FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | | FORMAT_MESSAGE_ARGUMENT_ARRAY | FORMAT_MESSAGE_ALLOCATE_BUFFER,
-    NULL,openKey, 0, (LPTSTR)&errorMsg,0,NULL);
-
-_tprintf(_T("Error code %i: %s\n"), openKey, errorMsg);
-LocalFree(errorMsg);
 
 // TODO: not tested
 void os_print_last_error(const char *msg) {
@@ -186,22 +180,85 @@ void os_print_last_error(const char *msg) {
       0))
 
   if (res) {
-    _tfprintf(stderr, _T("%s\n"), system_error_msg, error);
-    LocalFree(errorMsg);
+    _tfprintf(stderr, _T("%s\n"), system_error_msg);
+    LocalFree(system_error_msg);
   } else {
     fprintf(stderr, "<unknown>\n");
   }
 }
 
+u64 os_file_size_bytes(const char *filepath) {
+  struct __stat64 st;
+  int err = _stat64(filepath, &st);
+  return err ? 0 : st.st_size;
+}
+
+struct os_buf os_file_mmap(const char *filepath) {
+  struct os_buf ret = {0};
+
+  HANDLE map;
+  HANDLE file = CreateFileA(filepath, GENERIC_READ, FILE_SHARE_READ, 0,
+      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+
+  if (file != INVALID_HANDLE_VALUE) {
+    u64 size = GetFileSize(file, 0);
+    if (size != INVALID_FILE_SIZE && size != 0) {
+      map = CreateFileMappingA(file, 0, PAGE_READONLY, 0, size, 0);
+      if (map) {
+        void *map = (void *)MapViewOfFile(map, FILE_MAP_READ, 0, 0, size);
+        CloseHandle(map);
+
+        ret.data = map;
+        ret.size = size;
+      }
+    }
+    CloseHandle(file);
+  }
+
+  return ret;
+}
+
+b32 os_file_munmap(struct os_buf buf) {
+  return UnmapViewOfFile(buf.data);
+}
+
 #else
 
+#include <sys/stat.h>             // stat
 #include <sys/mman.h>             // mmap munmap mlock munlock
+#include <fcntl.h>                // open
 
 #if __APPLE__
 #include <mach/mach_vm.h>
 #else
 #include <linux/mman.h>           // MAP_HUGE_2MB
 #endif // #if __APPLE__
+
+struct os_validator g_os_validator;
+
+// TODO: Transform to FILE + LINE macro
+static void validator_error(const char *error) {
+  if (g_os_validator.log_error) {
+    g_os_validator.log_error(error);
+  }
+
+  if (g_os_validator.trap_on_error) {
+    __builtin_trap();
+  }
+}
+
+// NOTE: VirtualAlloc() returns 0 on failure and mmap() returns -1.
+// 0 is a valid mmap address, but it's easier to test for 0 in user code,
+// therefore we use it.
+static void *remap_mmap_failure_to_zero(void *m) {
+  if (!m) {
+    validator_error(
+        "[OS] Error: mmap returned address 0, which is valid for mmap, "
+        "but os_ module API uses zero to indicate a failure.\n");
+  }
+
+  return m == MAP_FAILED ? 0 : m;
+}
 
 void *os_virtual_alloc(u64 size) {
   void *m;
@@ -211,11 +268,11 @@ void *os_virtual_alloc(u64 size) {
   flags |= MAP_POPULATE;
 #endif // #if __linux__
   m = mmap(0, size, PROT_READ | PROT_WRITE, flags, -1, 0);
-  // NOTE: VirtualAlloc() returns 0 on failure and mmap() returns -1.
-  // 0 is a valid mmap address, but it's easier to test for 0 in user code.
-  assert(m && "mmap returned valid 0 address");
-  return m == MAP_FAILED ? 0 : m;
+  m = remap_mmap_failure_to_zero(m);
+  return m;
 }
+
+void (*s_log_error)(const char *) = 0;
 
 void *os_virtual_large_alloc(u64 *out_size) {
   // Ensure allocated size is multiple of 2MB page size
@@ -226,7 +283,7 @@ void *os_virtual_large_alloc(u64 *out_size) {
 #if __APPLE__
 #ifndef __x86_64__
   // XNU has superpage support only on x86_64
-  assert(0 && "Only x86_64 macOS supports 2MB superpages!");
+  validator_error("[OS] Error: only x86_64 macOS supports superpages!\n");
 #endif // #ifndef __x86_64__
   m = mmap(0, size, PROT_READ | PROT_WRITE,
       MAP_PRIVATE | MAP_ANON, VM_FLAGS_SUPERPAGE_SIZE_2MB, 0);
@@ -236,13 +293,11 @@ void *os_virtual_large_alloc(u64 *out_size) {
       MAP_PRIVATE | MAP_ANON | MAP_HUGETLB | MAP_POPULATE | MAP_HUGE_2MB,
       -1, 0);
 #endif // #if __APPLE__
-  // NOTE: VirtualAlloc() returns 0 on failure and mmap() returns -1.
-  // 0 is a valid mmap address, but it's easier to test for 0 in user code.
-  assert(m && "mmap returned valid 0 address");
-  if (m != MAP_FAILED) {
+  m = remap_mmap_failure_to_zero(m);
+  if (m) {
     *out_size = size;
   }
-  return m == MAP_FAILED ? 0 : m;
+  return m;
 }
 
 b32 os_virtual_free(void *p, u64 size) {
@@ -261,5 +316,34 @@ void os_print_last_error(const char *msg) {
   perror(msg);
 }
 
+u64 os_file_size_bytes(const char *filepath) {
+  struct stat st;
+  int err = stat(filepath, &st);
+  return err ? 0 : st.st_size;
+}
+
+struct os_buf os_file_mmap(const char *filepath) {
+  struct os_buf ret = {0};
+
+  int fd = open(filepath, O_RDONLY);
+  if (fd != -1) {
+    struct stat st;
+    if (!fstat(fd, &st)) {
+      if (st.st_size > 0) {
+        void *m = mmap(0, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+        m = remap_mmap_failure_to_zero(m);
+        ret.data = m;
+        ret.size = st.st_size;
+      }
+    }
+    close(fd);
+  }
+
+  return ret;
+}
+
+b32 os_file_munmap(struct os_buf buf) {
+  return munmap(buf.data, buf.size) != -1;
+}
 
 #endif // #if _WIN32

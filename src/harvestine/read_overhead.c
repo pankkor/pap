@@ -181,6 +181,31 @@ static void test_fread(struct tester *tester, enum alloc_type alloc_type,
   }
 }
 
+static void test_file_mmap(struct tester *tester, struct test_param *param) {
+  struct buf_u8 buf     = param->buf;
+  u64 touch_size        = param->buf.size;
+  const char *filepath  = param->filepath;
+
+  while (tester_step(tester)) {
+    struct os_buf map = os_file_mmap(filepath);
+    if (map.data && map.size) {
+
+      tester_zone_begin(tester);
+      for (u64 i = 0; i < touch_size; ++i) {
+        buf.data[i] = (u8)i; // write something
+      }
+      tester_zone_end(tester);
+
+      tester_count_bytes(tester, touch_size);
+
+      os_file_munmap(map);
+    } else {
+      tester_error(tester, "Error: os_file_mmap() failed");
+      os_print_last_error("os_file_mmap() failed");
+    }
+  }
+}
+
 typedef void test_func_t(struct tester *, enum alloc_type, struct test_param *);
 
 struct test
@@ -205,9 +230,13 @@ static void print_usage(void) {
 }
 
 int main(int argc, char **argv) {
+  g_os_validator = (struct os_validator){
+    .log_error = puts,
+    .trap_on_error = 0,
+  };
+
   const char *filepath;
   const char *testname;
-  int err;
 
   if (argc > 1 && strcmp(argv[1], "-h") == 0) {
     print_usage();
@@ -221,22 +250,15 @@ int main(int argc, char **argv) {
   filepath = argv[1];
   testname = argc > 2 ? argv[2] : 0;
 
- // get file size
-#if _WIN32
-  struct __stat64 st;
-  err = _stat64(filepath, &st);
-#else
-  struct stat st;
-  err = stat(filepath, &st);
-#endif
-  if (err) {
-    perror("Error: stat() failed");
+  u64 file_size = os_file_size_bytes(filepath);
+  if (!file_size) {
+    fprintf(stderr, "Error: empty or non-existing file");
     return 1;
   }
 
   struct buf_u8 buf = {
-    .data = malloc(st.st_size),
-    .size = st.st_size,
+    .data = malloc(file_size),
+    .size = file_size,
   };
 
   struct test_param param = {
@@ -245,9 +267,12 @@ int main(int argc, char **argv) {
   };
 
   u64 cpu_timer_freq = get_or_estimate_cpu_timer_freq(300);
-  u64 try_duration_tsc = 10 * cpu_timer_freq; // 10 seconds
+  u64 try_duration_tsc = 1 * cpu_timer_freq; // 10 seconds
 
-  // initialize testers
+  // File mmap test has a different structure and has it's own tester
+  struct tester file_mmap_tester = {0};
+
+  // Initialize testers
   struct tester testers[ARRAY_COUNT(s_tests)][ALLOC_TYPE_COUNT] = {0};
 
   for (u64 test_index = 0; test_index < ARRAY_COUNT(s_tests); ++test_index) {
@@ -265,21 +290,42 @@ int main(int argc, char **argv) {
     fprintf(stderr, "RUN %-20llu\n", run_index);
     fprintf(stderr, "------------------------------------------------------\n");
 
-    // for all tests
+    // File mmap test has a different structure and is not part of
+    // enum alloc_type.
+    fprintf(stderr, "--- Test test_file_mmap ---\n");
+
+    test_file_mmap(&file_mmap_tester, &param);
+
+    tester_print(&file_mmap_tester, cpu_timer_freq);
+    fprintf(stderr, "\n");
+
+    if (file_mmap_tester.run.state == TESTER_STATE_ERROR) {
+      goto cleanup;
+    }
+
+    // For the rest of tests
     for (u64 test_index = 0; test_index < ARRAY_COUNT(s_tests); ++test_index) {
       struct test *test = s_tests + test_index;
       if (testname && strcmp(testname, test->name) != 0) {
         continue;
       }
 
-      // for all allocation types
+      // For all allocation types
       for (i64 alloc_type = 0; alloc_type < ALLOC_TYPE_COUNT; ++alloc_type) {
-      // for (i64 alloc_type = 0; alloc_type < ALLOC_TYPE_COUNT; ++alloc_type) {
         struct tester *tester = &testers[test_index][alloc_type];
         tester->run = (struct tester_run){0};
 
         fprintf(stderr, "--- Test %s, %s ---\n",
             test->name, alloc_type_to_cstr(alloc_type));
+
+// TODO: implement and use os_large_page_size() to define if large allocations
+// are supported by the platform. For now use this #if switch.
+#if 1
+        if (alloc_type == ALLOC_TYPE_VIRTUAL_LARGE_ALLOC) {
+          fprintf(stderr, "Skipped\n\n");
+          continue;
+        }
+#endif
 
         test->func(tester, alloc_type, &param);
 
