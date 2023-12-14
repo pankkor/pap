@@ -60,6 +60,7 @@ srcs='
 src/harvestine/estimate_cpu_timer_freq.c
 src/harvestine/gen_harvestine.c
 src/harvestine/harvestine.c
+src/harvestine/microbenchmarks.c
 src/harvestine/pf_counter.c
 src/harvestine/ptr_anatomy.c
 src/harvestine/read_overhead.c
@@ -71,16 +72,14 @@ src/interview1994/has_color.c
 src/interview1994/str_cpy.c
 '
 
-# echo $cc_flags
-# exit 1
-
 for src in ${srcs}; do
   basename="${src##*/}"
   basename_wo_ext="${basename%.*}"
 
   case "$1" in
     asm)
-      $cc $cc_flags $cc_asm_flags "$src" -o "build/$basename_wo_ext.s $ld_flags" || exit $?
+      $cc $cc_flags $cc_asm_flags "$src" -o "build/$basename_wo_ext.s \
+        $ld_flags" || exit $?
       ;;
     *)
       $cc $cc_flags "$src" -o "build/$basename_wo_ext" $ld_flags || exit $?

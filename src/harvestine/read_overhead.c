@@ -252,7 +252,7 @@ int main(int argc, char **argv) {
 
   u64 file_size = os_file_size_bytes(filepath);
   if (!file_size) {
-    fprintf(stderr, "Error: empty or non-existing file");
+    fprintf(stderr, "Error: empty or non-existing file '%s'\n", filepath);
     return 1;
   }
 
@@ -267,7 +267,7 @@ int main(int argc, char **argv) {
   };
 
   u64 cpu_timer_freq = get_or_estimate_cpu_timer_freq(300);
-  u64 try_duration_tsc = 1 * cpu_timer_freq; // 10 seconds
+  u64 try_duration_tsc = 10 * cpu_timer_freq; // 10 seconds
 
   // File mmap test has a different structure and has it's own tester
   struct tester file_mmap_tester = {0};
@@ -293,20 +293,26 @@ int main(int argc, char **argv) {
     // File mmap test has a different structure and is not part of
     // enum alloc_type.
     fprintf(stderr, "--- Test test_file_mmap ---\n");
+    if (testname && strcmp(testname,"test_file_mmap") != 0) {
+      fprintf(stderr, "Skipped\n\n");
+    } else {
+      file_mmap_tester.run = (struct tester_run){0};
+      test_file_mmap(&file_mmap_tester, &param);
 
-    test_file_mmap(&file_mmap_tester, &param);
+      tester_print(&file_mmap_tester, cpu_timer_freq);
+      fprintf(stderr, "\n");
 
-    tester_print(&file_mmap_tester, cpu_timer_freq);
-    fprintf(stderr, "\n");
-
-    if (file_mmap_tester.run.state == TESTER_STATE_ERROR) {
-      goto cleanup;
+      if (file_mmap_tester.run.state == TESTER_STATE_ERROR) {
+        goto cleanup;
+      }
     }
 
     // For the rest of tests
     for (u64 test_index = 0; test_index < ARRAY_COUNT(s_tests); ++test_index) {
       struct test *test = s_tests + test_index;
       if (testname && strcmp(testname, test->name) != 0) {
+        fprintf(stderr, "--- Test %s ---\n", test->name);
+        fprintf(stderr, "Skipped\n\n");
         continue;
       }
 

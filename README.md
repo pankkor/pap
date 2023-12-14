@@ -32,10 +32,14 @@ target per source file. With `asm` argument the output is an assembly file.
 - `src/harvestine/estimate_cpu_timer_freq.c` - util to estimate timer frequency
 - `src/harvestine/gen_harvestine.c` - generate json with pairs of coordinates
 - `src/harvestine/harvestine.c` - parse json and calculate harvestine distances
+- `src/harvestine/microbenchmarks.c` - performance benchmarks
+- `src/harvestine/os.(h|c)` - OS level abstraction
+- `src/harvestine/pf_counter.c` - page fault counter test
 - `src/harvestine/profiler.(h|c)` - simple instrumentation profiler
+- `src/harvestine/ptr_anatomy.c` - memory pointer dissection
 - `src/harvestine/read_overhead.(h|c)` - benchmark to calculate read overhead
-- `src/harvestine/timer.(h|c)` - time stamp counter platform abstraction
 - `src/harvestine/tester.(h|c)` - repetition tester
+- `src/harvestine/timer.(h|c)` - time stamp counter platform abstraction
 - `src/harvestine/types.h` - types and macros
 
 #### Part 2.5 (interlude): Microsoft Interview 1994
