@@ -56,33 +56,38 @@ esac
 # Build process
 [ -d build ] || mkdir build
 
+# srcs='
+# src/harvestine/estimate_cpu_timer_freq.c
+# src/harvestine/gen_harvestine.c
+# src/harvestine/harvestine.c
+# src/harvestine/microbenchmarks.c src/harvestine/microbenchmarks.s
+# src/harvestine/pf_counter.c
+# src/harvestine/ptr_anatomy.c
+# src/harvestine/read_overhead.c
+# src/sim86/sim86.c
+# src/sum/sum.c
+# src/interview1994/cp_rect.c
+# src/interview1994/draw_circle.c
+# src/interview1994/has_color.c
+# src/interview1994/str_cpy.c
+# '
 srcs='
-src/harvestine/estimate_cpu_timer_freq.c
-src/harvestine/gen_harvestine.c
-src/harvestine/harvestine.c
-src/harvestine/microbenchmarks.c
-src/harvestine/pf_counter.c
-src/harvestine/ptr_anatomy.c
-src/harvestine/read_overhead.c
-src/sim86/sim86.c
-src/sum/sum.c
-src/interview1994/cp_rect.c
-src/interview1994/draw_circle.c
-src/interview1994/has_color.c
-src/interview1994/str_cpy.c
+src/harvestine/microbenchmarks.c src/harvestine/microbenchmarks.s
 '
 
-for src in ${srcs}; do
-  basename="${src##*/}"
-  basename_wo_ext="${basename%.*}"
+while IFS='$\n' read -r src; do
+  if [ "$src" ]; then
+    basename="${src##*/}"
+    basename_wo_ext="${basename%.*}"
 
-  case "$1" in
-    asm)
-      $cc $cc_flags $cc_asm_flags "$src" -o "build/$basename_wo_ext.s \
-        $ld_flags" || exit $?
-      ;;
-    *)
-      $cc $cc_flags "$src" -o "build/$basename_wo_ext" $ld_flags || exit $?
-      ;;
-  esac
-done
+    case "$1" in
+      asm)
+        $cc $cc_flags $cc_asm_flags $src -o "build/$basename_wo_ext.s" \
+          $ld_flags || exit $?
+        ;;
+      *)
+        $cc $cc_flags $src -o "build/$basename_wo_ext" $ld_flags || exit $?
+        ;;
+    esac
+  fi
+done <<< "$srcs"

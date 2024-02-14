@@ -18,6 +18,14 @@
 #include "tester.c"
 // End unity build
 
+#ifdef __clang__
+#define LOOP_NO_OPT    _Pragma(\
+    "clang loop unroll(disable) vectorize(disable) interleave(disable)")
+#else
+// TODO
+#define LOOP_NO_OPT
+#endif // #ifdef __clang__
+
 struct buf_u8 {
   u8 *data;
   u64 size;
@@ -27,9 +35,10 @@ struct buf_u8 {
 // Tests
 // --------------------------------------
 typedef void test_func_t(u8 *data, u64 bytes);
-void test_nop_3x1_all_bytes(u8 *data, u64 bytes);
-void test_nop_1x3_all_bytes(u8 *data, u64 bytes);
-void test_nop_1x9_all_bytes(u8 *data, u64 bytes);
+static void test_nop_3x1_all_bytes(u8 *data, u64 bytes);
+static void test_nop_1x3_all_bytes(u8 *data, u64 bytes);
+static void test_nop_1x9_all_bytes(u8 *data, u64 bytes);
+extern void test_asm_2(u8 *data, u64 bytes);
 
 // TODO <<<<<<<<<<<<<
 #define NO_OPT          __attribute__((optnone))
@@ -37,23 +46,54 @@ void test_nop_1x9_all_bytes(u8 *data, u64 bytes);
 #define LOOP_NO_OPT    _Pragma(\
     "clang loop unroll(disable) vectorize(disable) interleave(disable)")
 
-NO_OPT
-void test_nop_3x1_all_bytes(u8 *data, u64 bytes) {
+static void test_all_bytes_opt(u8 *data, u64 bytes) {
   for (u64 i = 0; i < bytes; ++i) {
     data[i] = (u8)i;
   }
 }
 
-void test_nop_1x3_all_bytes(u8 *data, u64 bytes) {
+static void test_all_bytes_noopt(u8 *data, u64 bytes) {
   LOOP_NO_OPT
   for (u64 i = 0; i < bytes; ++i) {
     data[i] = (u8)i;
   }
 }
-void test_nop_1x9_all_bytes(u8 *data, u64 bytes) {
+
+NO_OPT
+static void test_nop_3x1_all_bytes(u8 *data, u64 bytes) {
   for (u64 i = 0; i < bytes; ++i) {
     data[i] = (u8)i;
   }
+}
+
+static void test_nop_1x3_all_bytes(u8 *data, u64 bytes) {
+  LOOP_NO_OPT
+  for (u64 i = 0; i < bytes; ++i) {
+    data[i] = (u8)i;
+  }
+}
+
+static void test_nop_1x9_all_bytes(u8 *data, u64 bytes) {
+  for (u64 i = 0; i < bytes; ++i) {
+    data[i] = (u8)i;
+  }
+}
+
+static void test_asm(u8 *data, u64 bytes) {
+  // x0 - data
+  // x1 - bytes
+  __asm__ (
+      "cbz %[data], 1f\n\t"
+      "mov x9, #0\n\t"
+      "0: strb w9, [x0, x9]\n\t"
+      "add x9, x9, #1\n\t"
+      "cmp %[bytes], x9\n\t"
+      "b.ne 0b\n\t"
+      "1:\n\t"
+      : /* no output */
+      : [data] "r" (data), [bytes] "r" (bytes)
+      : "memory", "x9");
+
 }
 // TODO >>>>>>>>>>>>>
 
@@ -65,9 +105,13 @@ struct test
 
 static struct test s_tests[] =
 {
-  {"nop_3x1_all_bytes", test_nop_3x1_all_bytes},
-  {"nop_1x3_all_bytes", test_nop_1x3_all_bytes},
-  {"nop_1x9_all_bytes", test_nop_1x9_all_bytes},
+  {"test_asm",                test_asm},
+  {"test_asm_2",              test_asm_2},
+  // {"test_all_bytes_opt",      test_all_bytes_opt},
+  // {"test_all_bytes_noopt",    test_all_bytes_noopt},
+  // {"test_nop_3x1_all_bytes",  test_nop_3x1_all_bytes},
+  // {"test_nop_1x3_all_bytes",  test_nop_1x3_all_bytes},
+  // {"test_nop_1x9_all_bytes",  test_nop_1x9_all_bytes},
 };
 
 // --------------------------------------
