@@ -31,14 +31,20 @@ typedef i32                 b32;
 #define FUNC_NAME       __func__
 
 #define CLEANUP(x)      __attribute__((cleanup(x)))
-#define NO_OPT          __attribute__((optnone))
-#define LOOP_NO_OPT    _Pragma(\
-    "clang loop unroll(disable) vectorize(disable) interleave(disable)")
 
 #define XSTR(x)         STR(x)
 #define STR(x)          #x
 #define CONCAT(x, y)    x ## y
 #define XCONCAT(x, y)   CONCAT(x, y)
+
+#ifdef __clang__
+#define NO_OPT          __attribute__((optnone))
+#define LOOP_NO_OPT    _Pragma(\
+    "clang loop unroll(disable) vectorize(disable) interleave(disable)")
+#else
+#define NO_OPT          __attribute__((optimize(0)))
+#define LOOP_NO_OPT    _Pragma("GCC unroll 1")
+#endif // #ifdef __clang__
 
 // --------------------------------------
 // Utils

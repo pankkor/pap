@@ -75,7 +75,7 @@ srcs='
 src/harvestine/microbenchmarks.c src/harvestine/microbenchmarks.s
 '
 
-while IFS='$\n' read -r src; do
+while IFS=$'\n' read -r src; do
   if [ "$src" ]; then
     basename="${src##*/}"
     basename_wo_ext="${basename%.*}"
@@ -90,4 +90,6 @@ while IFS='$\n' read -r src; do
         ;;
     esac
   fi
-done <<< "$srcs"
+done << EOF
+$srcs
+EOF

@@ -18,14 +18,6 @@
 #include "tester.c"
 // End unity build
 
-#ifdef __clang__
-#define LOOP_NO_OPT    _Pragma(\
-    "clang loop unroll(disable) vectorize(disable) interleave(disable)")
-#else
-// TODO
-#define LOOP_NO_OPT
-#endif // #ifdef __clang__
-
 struct buf_u8 {
   u8 *data;
   u64 size;
@@ -35,57 +27,54 @@ struct buf_u8 {
 // Tests
 // --------------------------------------
 typedef void test_func_t(u8 *data, u64 bytes);
-static void test_nop_3x1_all_bytes(u8 *data, u64 bytes);
-static void test_nop_1x3_all_bytes(u8 *data, u64 bytes);
-static void test_nop_1x9_all_bytes(u8 *data, u64 bytes);
+// static void test_nop_3x1_all_bytes(u8 *data, u64 bytes);
+// static void test_nop_1x3_all_bytes(u8 *data, u64 bytes);
+// static void test_nop_1x9_all_bytes(u8 *data, u64 bytes);
 extern void test_asm_2(u8 *data, u64 bytes);
 
 // TODO <<<<<<<<<<<<<
-#define NO_OPT          __attribute__((optnone))
 
-#define LOOP_NO_OPT    _Pragma(\
-    "clang loop unroll(disable) vectorize(disable) interleave(disable)")
-
-static void test_all_bytes_opt(u8 *data, u64 bytes) {
-  for (u64 i = 0; i < bytes; ++i) {
-    data[i] = (u8)i;
-  }
-}
-
-static void test_all_bytes_noopt(u8 *data, u64 bytes) {
-  LOOP_NO_OPT
-  for (u64 i = 0; i < bytes; ++i) {
-    data[i] = (u8)i;
-  }
-}
-
-NO_OPT
-static void test_nop_3x1_all_bytes(u8 *data, u64 bytes) {
-  for (u64 i = 0; i < bytes; ++i) {
-    data[i] = (u8)i;
-  }
-}
-
-static void test_nop_1x3_all_bytes(u8 *data, u64 bytes) {
-  LOOP_NO_OPT
-  for (u64 i = 0; i < bytes; ++i) {
-    data[i] = (u8)i;
-  }
-}
-
-static void test_nop_1x9_all_bytes(u8 *data, u64 bytes) {
-  for (u64 i = 0; i < bytes; ++i) {
-    data[i] = (u8)i;
-  }
-}
+// static void test_all_bytes_opt(u8 *data, u64 bytes) {
+//   for (u64 i = 0; i < bytes; ++i) {
+//     data[i] = (u8)i;
+//   }
+// }
+//
+// static void test_all_bytes_noopt(u8 *data, u64 bytes) {
+//   LOOP_NO_OPT
+//   for (u64 i = 0; i < bytes; ++i) {
+//     data[i] = (u8)i;
+//   }
+// }
+//
+// NO_OPT
+// static void test_nop_3x1_all_bytes(u8 *data, u64 bytes) {
+//   for (u64 i = 0; i < bytes; ++i) {
+//     data[i] = (u8)i;
+//   }
+// }
+//
+// static void test_nop_1x3_all_bytes(u8 *data, u64 bytes) {
+//   LOOP_NO_OPT
+//   for (u64 i = 0; i < bytes; ++i) {
+//     data[i] = (u8)i;
+//   }
+// }
+//
+// static void test_nop_1x9_all_bytes(u8 *data, u64 bytes) {
+//   for (u64 i = 0; i < bytes; ++i) {
+//     data[i] = (u8)i;
+//   }
+// }
 
 static void test_asm(u8 *data, u64 bytes) {
+#ifdef __aarch64__
   // x0 - data
   // x1 - bytes
-  __asm__ (
-      "cbz %[data], 1f\n\t"
+  __asm__ volatile (
+      "cbz %[bytes], 1f\n\t"
       "mov x9, #0\n\t"
-      "0: strb w9, [x0, x9]\n\t"
+      "0: strb %[data], [x0, x9]\n\t"
       "add x9, x9, #1\n\t"
       "cmp %[bytes], x9\n\t"
       "b.ne 0b\n\t"
@@ -93,7 +82,20 @@ static void test_asm(u8 *data, u64 bytes) {
       : /* no output */
       : [data] "r" (data), [bytes] "r" (bytes)
       : "memory", "x9");
-
+#elif defined(__x86_64__)
+  __asm__ volatile (
+      "testq %[bytes], %[bytes]\n\t"
+      "je 1f\n\t"
+      "xorl %%eax, %%eax\n\t"
+      "0: movb %%al, (%[data],%%rax)\n\t"
+      "incq %%rax\n\t"
+      "cmpq %%rax, %[bytes]\n\t"
+      "jne 0b\n\t"
+      "1:\n\t"
+      : /* no output */
+      : [data] "r" (data), [bytes] "r" (bytes)
+      : "memory", "rax");
+#endif
 }
 // TODO >>>>>>>>>>>>>
 

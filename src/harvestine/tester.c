@@ -8,7 +8,7 @@ enum {TESTER_DEFAULT_TRY_DURATION_TSC = 240000000};
 
 static const char * const s_delim =
   "--------------------------------------------------"
-  "---------------";
+  "-----------------";
 
 b32 tester_step(struct tester *tester) {
   u64 current_tsc = read_cpu_timer();
@@ -104,7 +104,7 @@ void tester_error(struct tester *tester, const char *error_message) {
 static void tester_stats_print_titles(b32 csv) {
   fprintf(
       stderr,
-      csv ? "%s,%s,%s,%s,%s,%s\n" : "%-10s|%10s|%10s|%10s|%10s|%10s\n",
+      csv ? "%s,%s,%s,%s,%s,%s\n" : "%-10s|%10s|%10s|%10s|%12s|%10s\n",
       "Stat", "tsc", "ms", "GB/s", "Mem PF", "kB/Mem PF");
 }
 
@@ -123,7 +123,7 @@ static void tester_values_print(const char *label, struct tester_values values,
   fprintf(
       stderr,
       csv ? "%s,%llu,%f,%f,%f,%f\n"
-          : "%-10s|%10llu|%10.4f|%10.4f|%10.4f|%10.4f\n",
+          : "%-10s|%10llu|%10.4f|%10.4f|%12.4f|%10.4f\n",
       label, tsc, ms, gb_p_sec, mem_pf, kb_p_mem_pf);
 }
 
