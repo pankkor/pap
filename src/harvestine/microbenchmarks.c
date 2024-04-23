@@ -68,7 +68,7 @@ extern void test_asm_2(u8 *data, u64 bytes);
 // }
 
 static void test_asm(u8 *data, u64 bytes) {
-#ifdef __aarch64__
+#if defined(__aarch64__)
   // x0 - data
   // x1 - bytes
   __asm__ volatile (
