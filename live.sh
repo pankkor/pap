@@ -9,7 +9,7 @@ Requirements:     'entr' utility installed.
 Build directory:  './build'
 
 Example
-  live.sh --test sum
+  live.sh sum
 Would watch ./build/sum for modifications using 'entr' and rerun sum test when
 it's modified.
 
