@@ -72,7 +72,7 @@ esac
 # src/interview1994/str_cpy.c
 # '
 srcs='
-src/harvestine/microbenchmarks.c src/harvestine/microbenchmarks.s
+src/harvestine/microbenchmarks.c src/harvestine/microbenchmarks.S
 '
 
 while IFS=$'\n' read -r src; do
@@ -82,7 +82,7 @@ while IFS=$'\n' read -r src; do
 
     case "$1" in
       asm)
-        $cc $cc_flags $cc_asm_flags $src -o "build/$basename_wo_ext.s" \
+        $cc $cc_flags $cc_asm_flags $src -o "build/$basename_wo_ext.S" \
           $ld_flags || exit $?
         ;;
       *)

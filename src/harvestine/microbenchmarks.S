@@ -1,6 +1,8 @@
-# TODO
-.ifdef __aarch64__
+# NOTE: Compile with 'gcc' driver (not with 'as'!) to get platform defines
 
+#if defined(__aarch64__)
+
+#if __APPLE__
 .global test_asm_2
 .type test_asm_2, "function"
 .p2align 4
@@ -18,12 +20,19 @@ test_asm_2:
   b.ne 0b
 1:
 . ret
-.elifdef __x86_64__
+
+#else
+#error Not implemented
+#endif // #if __APPLE__
+
+#elif defined(__x86_64__)
 
 .global test_asm_2
 .type test_asm_2, "function"
 .p2align 4
 .intel_syntax noprefix
+
+#if __linux__
 
 // Args:
 // rdi - u8 *data
@@ -40,4 +49,8 @@ test_asm_2:
 .loop_end:
   ret
 
-.endif
+#else
+#error Not implemented
+#endif // #if __linux__
+
+#endif // #if defined(__aarch64__)
