@@ -3,34 +3,42 @@
 #if defined(__aarch64__)
 
 #if __APPLE__
-.global test_asm_2
-.type test_asm_2, "function"
+.text
+.global _test_asm_2
 .p2align 4
 
 // Args:
 // x0 - u8 *data
 // x1 - u64 bytes
-test_asm_2:
-  cbz [x0], 1f
+_test_asm_2:
+  cbz x1, .loop_end
   mov x9, #0
-0:
+.loop:
   strb w9, [x0, x9]
   add x9, x9, #1
-  cmp [x1], x9
-  b.ne 0b
-1:
-. ret
+  cmp x1, x9
+  b.ne .loop
+.loop_end:
+  ret
+
+// TODO: should be faster?
+//  cbz x1, .loop_end
+//  add x9, x0, x1
+//.loop:
+//  strb w9, [x0], #1
+//  cmp x1, x9
+//  b.ne .loop
 
 #else
 #error Not implemented
 #endif // #if __APPLE__
 
 #elif defined(__x86_64__)
+.intel_syntax noprefix
 
 .global test_asm_2
 .type test_asm_2, "function"
 .p2align 4
-.intel_syntax noprefix
 
 #if __linux__
 

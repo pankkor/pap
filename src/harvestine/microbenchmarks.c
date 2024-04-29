@@ -74,7 +74,7 @@ static void test_asm(u8 *data, u64 bytes) {
   __asm__ volatile (
       "cbz %[bytes], 1f\n\t"
       "mov x9, #0\n\t"
-      "0: strb %[data], [x0, x9]\n\t"
+      "0: strb w9, [x0, x9]\n\t"
       "add x9, x9, #1\n\t"
       "cmp %[bytes], x9\n\t"
       "b.ne 0b\n\t"
