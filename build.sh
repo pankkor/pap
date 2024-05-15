@@ -49,8 +49,14 @@ esac
 
 # Linker flags
 ld_flags=
+case "$os"  in
+  linux)    ld_flags=-lm;;
+esac
+
+# Disassembler
+disasm=
 case "$os" in
-  linux)   ld_flags=-lm;;
+    darwin) disasm='otool -vt';;
 esac
 
 # Build process
@@ -84,6 +90,10 @@ while IFS=$'\n' read -r src; do
       asm)
         $cc $cc_flags $cc_asm_flags $src -o "build/$basename_wo_ext.S" \
           $ld_flags || exit $?
+        ;;
+      disasm)
+        $disasm "build/$basename_wo_ext" > "build/$basename_wo_ext.S" \
+          || exit $?
         ;;
       *)
         $cc $cc_flags $src -o "build/$basename_wo_ext" $ld_flags || exit $?
