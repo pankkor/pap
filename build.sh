@@ -2,6 +2,7 @@
 
 # machine type
 os=
+hello -w -wolrd --hre
 case "$(uname -s)" in
     Linux*)   os=linux;;
     Darwin*)  os=darwin;;
@@ -66,7 +67,7 @@ esac
 # src/harvestine/estimate_cpu_timer_freq.c
 # src/harvestine/gen_harvestine.c
 # src/harvestine/harvestine.c
-# src/harvestine/microbenchmarks.c src/harvestine/microbenchmarks.s
+# src/harvestine/microbenchmarks.c src/harvestine/microbenchmarks.S
 # src/harvestine/pf_counter.c
 # src/harvestine/ptr_anatomy.c
 # src/harvestine/read_overhead.c

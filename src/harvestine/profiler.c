@@ -1,6 +1,7 @@
+#ifdef PROFILER_ENABLED
 #include "profiler.h"
 
-#ifdef PROFILER_ENABLED
+#include "timer.h" // read_cpu_timer()
 
 #include <assert.h>   // assert
 #include <stdio.h>    // fprintf stderr
@@ -141,4 +142,6 @@ void profiler_print_stats(u64 cpu_timer_freq, b32 csv) {
     fprintf(stderr, "%s\n\n", s_delim);
   }
 }
+#else
+int empty_translation_unit_warning_fix;
 #endif // #ifdef PROFILER_ENABLED

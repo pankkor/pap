@@ -1,7 +1,5 @@
 #pragma once
 
-#include "timer.h"
-
 #ifndef PROFILER_ENABLED
 
 #define PROFILER_BEGIN()

@@ -5,7 +5,6 @@
 // Question 4: Draw circle outline
 
 #include <stdio.h>      // printf
-#include <time.h>       // nanosleep
 #include <unistd.h>     // usleep
 
 typedef unsigned char u8;

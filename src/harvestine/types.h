@@ -32,8 +32,8 @@ typedef i32                 b32;
 
 #define CLEANUP(x)      __attribute__((cleanup(x)))
 
-#define XSTR(x)         STR(x)
 #define STR(x)          #x
+#define XSTR(x)         STR(x)
 #define CONCAT(x, y)    x ## y
 #define XCONCAT(x, y)   CONCAT(x, y)
 
