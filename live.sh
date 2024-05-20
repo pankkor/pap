@@ -1,7 +1,7 @@
 #!/bin/sh
 
-help="""
-USAGE
+help="
+Usage
   live.sh <test> [test_arguments]
 
 Simple live coding evnironment.Runs selected test on every binary modification.
@@ -55,7 +55,7 @@ TESTS
 
   draw_circle
     Interview Questions from 1994: draw circle outline (Bresenham's circle)
-"""
+"
 
 case "$1" in
   -h | --help)

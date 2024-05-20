@@ -32,7 +32,6 @@ typedef void test_func_t(u8 *data, u64 bytes);
 // static void test_nop_1x9_all_bytes(u8 *data, u64 bytes);
 
 extern void test_mov_all_bytes(u8 *data, u64 bytes);
-extern void test_mov_all_bytes_2(u8 *data, u64 bytes);
 extern void test_nop_all_bytes(u8 *data, u64 bytes);
 
 static void test_all_bytes_opt(u8 *data, u64 bytes) {
@@ -109,7 +108,6 @@ struct test
 static struct test s_tests[] =
 {
   {"test_mov_all_bytes",                test_mov_all_bytes},
-  {"test_mov_all_bytes_2",              test_mov_all_bytes_2},
   {"test_mov_all_bytes_inline_asm",     test_mov_all_bytes_inline_asm},
   {"test_nop_all_bytes",                test_mov_all_bytes_inline_asm},
   {"test_all_bytes_opt",                test_all_bytes_opt},
@@ -149,7 +147,6 @@ int test(void) {
   struct test mov_byte_tests[] =
   {
     {"test_mov_all_bytes",                test_mov_all_bytes},
-    {"test_mov_all_bytes_2",              test_mov_all_bytes_2},
     {"test_mov_all_bytes_inline_asm",     test_mov_all_bytes_inline_asm},
   };
 
@@ -183,7 +180,7 @@ int test(void) {
 }
 
 int main(int argc, char **argv) {
-#if 0
+#if 1
   if (!test())
   {
     fprintf(stderr, "Tests failed!\n");

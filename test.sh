@@ -2,14 +2,14 @@
 
 listings_dir='src/sim86/listings'
 
-help="""
+help="
 Test script
 
 OPTIONS
   -h, --help
   --sim86_decode    test 8086 instructions decode listings
   --sim86_simulate  test 8086 instructions simulate listings
-"""
+"
 
 sim86_decode=1
 sim86_simulate=1
