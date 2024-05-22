@@ -1,5 +1,6 @@
 #!/bin/sh
 
+# Newline separated build sources. One target per line.
 srcs='
 src/harvestine/estimate_cpu_timer_freq.c
 src/harvestine/gen_harvestine.c
@@ -16,17 +17,14 @@ src/interview1994/has_color.c
 src/interview1994/str_cpy.c
 '
 
-################################################################################
-# HELP
-################################################################################
-
+# Help text generateion
 help="
 Build script.
 
 Usage
   build.sh [commands=build] [target=all]
 
-Creates 'build' directory and builds specified 'target' with every command from 
+Creates 'build' directory and builds specified 'target' with every command from
 the comma separated list of '[commands]'.
 
 Example:
@@ -52,10 +50,7 @@ done << EOF
 $srcs
 EOF
 
-################################################################################
-# BUILD
-################################################################################
-
+# Build Arguments
 cmds="${1:-build}"
 target="${2-all}"
 
@@ -66,6 +61,7 @@ case "$cmds" in
     ;;
 esac
 
+# Platform options
 # Machine type
 os=
 hello -w -wolrd --hre
@@ -120,7 +116,7 @@ case "$os"  in
   linux)    ld_flags=-lm;;
 esac
 
-# Disassembler
+# Disassembler util
 disasm=
 case "$os" in
     darwin) disasm='otool -vt';;
@@ -129,21 +125,27 @@ esac
 # Build directory
 [ -d build ] || mkdir build
 
-# Sanity check
-case "$cmds" in
-  *disasm*build*)
-    echo "Error: specified 'disasm' command before 'build'." >&2
-    echo "'disasm' requires a binary to be disassembled." >&2
-    echo "Specify 'build' before 'disasm' -> 'build,disasm'." >&2
-    exit 1
-    ;;
-esac
-
-# Transform comma separated commands to space separated commas
+# Parse comma separated commands into the set of command steps
+# Transform comma separated commands to space separated commas.
 cmds=${cmds//,/ }
 
-build_done=
-# Iterate over newline separated list of srcs
+cmd_asm=0
+cmd_build=0
+cmd_disasm=0
+for cmd in $cmds; do
+  case "$cmd" in
+    asm)    cmd_asm=1;;
+    build)  cmd_build=1;;
+    disasm) cmd_disasm=1;;
+    *)
+      echo "Error: unknown command '$cmd'" >&2;
+      echo "$help" >&2;
+      exit 1;;
+  esac
+done
+
+# Build
+build_done=0
 while IFS=$'\n' read -r src; do
   if [ "$src" ]; then
     # Skip not matching $target
@@ -158,40 +160,32 @@ while IFS=$'\n' read -r src; do
     basename_wo_ext="${basename%.*}"
 
     echo "\nBuilding '$src'..."
-
-    for cmd in $cmds; do
-      case "$cmd" in
-        asm)
-          # There could be several files in one $src target.
-          # Split by whitespace and output assembly separately for each.
-          for s in $src; do
-            s_basename="${s##*/}"
-            echo " * $cmd    '$s_basename' -> 'build/$s_basename.S'"
-            $cc $cc_flags $cc_asm_flags $s -o "build/$s_basename.S" || exit $?
-          done
-          build_done=1
-          ;;
-        build)
-          echo " * $cmd  '$src' -> 'build/$basename_wo_ext'"
-          $cc $cc_flags $src -o "build/$basename_wo_ext" $ld_flags || exit $?
-          build_done=1
-          ;;
-        disasm)
-          echo " * $cmd 'build/$basename_wo_ext' -> 'build/$basename_wo_ext.out.S'"
-          $disasm "build/$basename_wo_ext" > "build/$basename_wo_ext.S" || exit $?
-          build_done=1
-          ;;
-        *)
-          echo "Error: unknown command '$cmd'" >&2;
-          echo "$help" >&2;
-          exit 1;;
-      esac
-    done
+    if [ $cmd_asm -eq 1 ]; then
+      # There could be several files in one $src target.
+      # Split by whitespace and output assembly separately for each.
+      for s in $src; do
+        s_basename="${s##*/}"
+        echo " * asm    '$s_basename' -> 'build/$s_basename.S'"
+        $cc $cc_flags $cc_asm_flags $s -o "build/$s_basename.S" || exit $?
+      done
+      build_done=1
+    fi
+    if [ $cmd_build -eq 1 ]; then
+      echo " * build  '$src' -> 'build/$basename_wo_ext'"
+      $cc $cc_flags $src -o "build/$basename_wo_ext" $ld_flags || exit $?
+      build_done=1
+    fi
+    if [ $cmd_disasm -eq 1 ]; then
+      echo \
+        " * disasm 'build/$basename_wo_ext' -> 'build/$basename_wo_ext.out.S'"
+      $disasm "build/$basename_wo_ext" > "build/$basename_wo_ext.S" || exit $?
+      build_done=1
+    fi
   fi
 done << EOF
 $srcs
 EOF
 
-if ! [ "$build_done" ]; then
+if [ "$build_done" -eq 0 ]; then
   echo "Error: target not found '$target'." >&2 
 fi

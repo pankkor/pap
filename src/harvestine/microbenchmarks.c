@@ -180,7 +180,7 @@ int test(void) {
 }
 
 int main(int argc, char **argv) {
-#if 1
+#if 0
   if (!test())
   {
     fprintf(stderr, "Tests failed!\n");

@@ -4,21 +4,17 @@ https://www.computerenhance.com/p/table-of-contents
 https://github.com/cmuratori/computer_enhance
 
 ### Supported platforms
-- macOS (clang)
-- Linux (gcc)
-
-### Supported architectures
-- AArch64
-- x86_64
+- macOS AArch64 (clang)
+- Linux x86_64  (gcc)
 
 ### Build
 ```
-build.sh [asm]
+build.sh
 ```
-Creates `build` directory and build all the targets from `src` directory. One
-target per source file. With `asm` argument the output is an assembly file.
+Creates `build` directory and builds all the targets from `src` directory.
+See `-h` for the list of targets and more options.
 
-### Files
+### Files   
 #### Prologue
 - `src/sum/sum.c` - sum of array with and w/o SIMD
 
@@ -53,3 +49,4 @@ target per source file. With `asm` argument the output is an assembly file.
 - `build.sh` - build script
 - `compile_flags.txt` - list of compilation flags used by clangd and build.sh
 - `live.sh` - poor man's live coding environment (requires 'entr' utility)
+- `test.sh` - 8086 decoder and simulation test
