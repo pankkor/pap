@@ -27,77 +27,23 @@ struct buf_u8 {
 // Tests
 // --------------------------------------
 typedef void test_func_t(u8 *data, u64 bytes);
-// static void test_nop_3x1_all_bytes(u8 *data, u64 bytes);
-// static void test_nop_1x3_all_bytes(u8 *data, u64 bytes);
-// static void test_nop_1x9_all_bytes(u8 *data, u64 bytes);
 
 extern void test_mov_all_bytes(u8 *data, u64 bytes);
 extern void test_nop_all_bytes(u8 *data, u64 bytes);
 
-static void test_all_bytes_opt(u8 *data, u64 bytes) {
-  for (u64 i = 0; i < bytes; ++i) {
-    data[i] = (u8)i;
-  }
-}
-
-static void test_all_bytes_noopt(u8 *data, u64 bytes) {
-  LOOP_NO_OPT
-  for (u64 i = 0; i < bytes; ++i) {
-    data[i] = (u8)i;
-  }
-}
-//
-// NO_OPT
-// static void test_nop_3x1_all_bytes(u8 *data, u64 bytes) {
+// TODO remove
+// static void test_all_bytes_opt(u8 *data, u64 bytes) {
 //   for (u64 i = 0; i < bytes; ++i) {
 //     data[i] = (u8)i;
 //   }
 // }
 //
-// static void test_nop_1x3_all_bytes(u8 *data, u64 bytes) {
+// static void test_all_bytes_noopt(u8 *data, u64 bytes) {
 //   LOOP_NO_OPT
 //   for (u64 i = 0; i < bytes; ++i) {
 //     data[i] = (u8)i;
 //   }
 // }
-//
-// static void test_nop_1x9_all_bytes(u8 *data, u64 bytes) {
-//   for (u64 i = 0; i < bytes; ++i) {
-//     data[i] = (u8)i;
-//   }
-// }
-
-static void test_mov_all_bytes_inline_asm(u8 *data, u64 bytes) {
-#if defined(__aarch64__)
-  __asm__ volatile (
-      "cbz %[bytes], 1f\n\t"
-      "mov x9, #0\n\t"
-      "0: strb w9, [%[data], x9]\n\t"
-      "add x9, x9, #1\n\t"
-      "cmp %[bytes], x9\n\t"
-      "b.ne 0b\n\t"
-      "1:\n\t"
-      : /* no output */
-      : [data] "r" (data), [bytes] "r" (bytes)
-      : "memory", "x9");
-#elif defined(__x86_64__)
-  __asm__ volatile (
-      "testq %[bytes], %[bytes]\n\t"
-      "je 1f\n\t"
-      "xorl %%eax, %%eax\n\t"
-      "0: movb %%al, (%[data],%%rax)\n\t"
-      "incq %%rax\n\t"
-      "cmpq %%rax, %[bytes]\n\t"
-      "jne 0b\n\t"
-      "1:\n\t"
-      : /* no output */
-      : [data] "r" (data), [bytes] "r" (bytes)
-      : "memory", "rax");
-#else
-  #error Not implemented
-#endif
-}
-// TODO >>>>>>>>>>>>>
 
 struct test
 {
@@ -107,14 +53,10 @@ struct test
 
 static struct test s_tests[] =
 {
+  {"test_nop_all_bytes",                test_nop_all_bytes},
   {"test_mov_all_bytes",                test_mov_all_bytes},
-  {"test_mov_all_bytes_inline_asm",     test_mov_all_bytes_inline_asm},
-  {"test_nop_all_bytes",                test_mov_all_bytes_inline_asm},
-  {"test_all_bytes_opt",                test_all_bytes_opt},
-  {"test_all_bytes_noopt",              test_all_bytes_noopt},
-  // {"test_nop_3x1_all_bytes",  test_nop_3x1_all_bytes},
-  // {"test_nop_1x3_all_bytes",  test_nop_1x3_all_bytes},
-  // {"test_nop_1x9_all_bytes",  test_nop_1x9_all_bytes},
+  // {"test_all_bytes_opt",                test_all_bytes_opt},
+  // {"test_all_bytes_noopt",              test_all_bytes_noopt},
 };
 
 // --------------------------------------
@@ -147,7 +89,6 @@ int test(void) {
   struct test mov_byte_tests[] =
   {
     {"test_mov_all_bytes",                test_mov_all_bytes},
-    {"test_mov_all_bytes_inline_asm",     test_mov_all_bytes_inline_asm},
   };
 
   for (u64 test_index = 0; test_index < ARRAY_COUNT(mov_byte_tests); ++test_index) {
@@ -229,7 +170,8 @@ int main(int argc, char **argv) {
   };
 
   u64 cpu_timer_freq = get_or_estimate_cpu_timer_freq(300);
-  u64 try_duration_tsc = 10 * cpu_timer_freq; // 10 seconds
+  // TODO: 1 sec -> 10 sec
+  u64 try_duration_tsc = 1 * cpu_timer_freq; // 10 seconds
 
   struct tester testers[ARRAY_COUNT(s_tests)] = {0};
   for (u64 i = 0; i < ARRAY_COUNT(testers); ++i) {
