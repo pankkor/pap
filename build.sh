@@ -22,7 +22,7 @@ help="
 Build script.
 
 Usage
-  build.sh [command=build] [target=all]
+  build.sh [options] [target=all]
 
 Creates 'build' directory and builds specified 'target' with every command from
 the comma separated list of '[commands]'.
@@ -30,10 +30,9 @@ the comma separated list of '[commands]'.
 Example:
   build.sh build,asm,disasm all
 
-Commands
-  help,--help,-h    This help.
-  build             Build target to 'build/[target]'. Default.
-  build-disasm      Build target to 'build/[target]' and then disassemble binary
+Options
+  --help,-h         This help.
+  --build-disasm    Build target to 'build/[target]' and then disassemble binary
                     to 'build/[target].s'.
 
 Targets
@@ -51,9 +50,31 @@ done << EOF
 $srcs
 EOF
 
-# Build Arguments
-cmd="${1:-build}"
-target="${2-all}"
+# Options
+target="all"
+
+cmd_build=1
+cmd_disasm=0
+
+for opt in "$@"; do
+  case "$opt" in
+    --help | -h)
+      echo "$help"
+      exit 0
+      ;;
+    --build-disasm)
+      cmd_disasm=1
+      ;;
+    -*)
+      echo "Error: unknown option '$opt'" >&2;
+      echo "$help" >&2;
+      exit 1
+      ;;
+    *)
+      target="$opt"
+      ;;
+  esac
+done
 
 # Platform options
 # Machine type
@@ -116,27 +137,7 @@ disasm='objdump -S'
 # Build directory
 [ -d build ] || mkdir build
 
-cmd_build=0
-cmd_disasm=0
-
-case "$cmd" in
-  help | -h | --help)
-    echo "$help"
-    exit 0
-    ;;
-  build)
-    cmd_build=1
-    ;;
-  build-disasm)
-    cmd_build=1
-    cmd_disasm=1
-    ;;
-  *)
-    echo "Error: unknown command '$cmd'" >&2;
-    echo "$help" >&2;
-    exit 1
-    ;;
-esac
+echo "Building target '$target'"
 
 # Build
 build_done=0
