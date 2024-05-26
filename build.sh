@@ -33,18 +33,19 @@ Example:
 Commands
   help,-h   This help.
   build     Build target to 'build/[target]'. Default.
-  asm       Output assembly of every translation unit to 'build/[target].S'.
-  disasm    Disassemble binary at 'build/[target]' to 'build/[target].out.S.'
+  disasm    Build target to 'build/[target]' and then disassemble binary
+            to 'build/[target].s'.
 
 Targets
   all                             Build all targets. Default.
 "
 
-while IFS=$'\n' read -r src; do
+while read -r src; do
   if [ "$src" ]; then
     basename="${src##*/}"
     basename_wo_ext="${basename%.*}"
-    help="$help  $basename_wo_ext\n"
+    help="$help  $basename_wo_ext
+"
   fi
 done << EOF
 $srcs
@@ -64,7 +65,6 @@ esac
 # Platform options
 # Machine type
 os=
-hello -w -wolrd --hre
 case "$(uname -s)" in
     Linux*)   os=linux;;
     Darwin*)  os=darwin;;
@@ -117,36 +117,38 @@ case "$os"  in
 esac
 
 # Disassembler util
-disasm=
-case "$os" in
-    darwin) disasm='otool -vt';;
-esac
+# Alternatively on 'otool -vt' could be used on Darwin
+disasm='objdump -S'
 
 # Build directory
 [ -d build ] || mkdir build
 
 # Parse comma separated commands into the set of command steps
-# Transform comma separated commands to space separated commas.
-cmds=${cmds//,/ }
-
-cmd_asm=0
 cmd_build=0
 cmd_disasm=0
+
+IFS=','
 for cmd in $cmds; do
   case "$cmd" in
-    asm)    cmd_asm=1;;
-    build)  cmd_build=1;;
-    disasm) cmd_disasm=1;;
+    build)
+      cmd_build=1
+      ;;
+    disasm) # always build in case of disasm command
+      cmd_build=1
+      cmd_disasm=1
+      ;;
     *)
       echo "Error: unknown command '$cmd'" >&2;
       echo "$help" >&2;
       exit 1;;
   esac
 done
+unset IFS
 
 # Build
 build_done=0
-while IFS=$'\n' read -r src; do
+while IFS='
+' read -r src; do
   if [ "$src" ]; then
     # Skip not matching $target
     if [ "$target" != 'all' ]; then
@@ -159,26 +161,18 @@ while IFS=$'\n' read -r src; do
     basename="${src##*/}"
     basename_wo_ext="${basename%.*}"
 
-    echo "\nBuilding '$src'..."
-    if [ $cmd_asm -eq 1 ]; then
-      # There could be several files in one $src target.
-      # Split by whitespace and output assembly separately for each.
-      for s in $src; do
-        s_basename="${s##*/}"
-        echo " * asm    '$s_basename' -> 'build/$s_basename.S'"
-        $cc $cc_flags $cc_asm_flags $s -o "build/$s_basename.S" || exit $?
-      done
-      build_done=1
-    fi
+    echo "
+Building '$src'..."
     if [ $cmd_build -eq 1 ]; then
       echo " * build  '$src' -> 'build/$basename_wo_ext'"
       $cc $cc_flags $src -o "build/$basename_wo_ext" $ld_flags || exit $?
       build_done=1
     fi
+
     if [ $cmd_disasm -eq 1 ]; then
       echo \
-        " * disasm 'build/$basename_wo_ext' -> 'build/$basename_wo_ext.out.S'"
-      $disasm "build/$basename_wo_ext" > "build/$basename_wo_ext.S" || exit $?
+        " * disasm 'build/$basename_wo_ext' -> 'build/$basename_wo_ext.s'"
+      $disasm "build/$basename_wo_ext" > "build/$basename_wo_ext.s" || exit $?
       build_done=1
     fi
   fi
@@ -187,5 +181,5 @@ $srcs
 EOF
 
 if [ "$build_done" -eq 0 ]; then
-  echo "Error: target not found '$target'." >&2 
+  echo "Error: target not found '$target'." >&2
 fi
