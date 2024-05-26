@@ -22,7 +22,7 @@ help="
 Build script.
 
 Usage
-  build.sh [commands=build] [target=all]
+  build.sh [command=build] [target=all]
 
 Creates 'build' directory and builds specified 'target' with every command from
 the comma separated list of '[commands]'.
@@ -31,10 +31,10 @@ Example:
   build.sh build,asm,disasm all
 
 Commands
-  help,-h   This help.
-  build     Build target to 'build/[target]'. Default.
-  disasm    Build target to 'build/[target]' and then disassemble binary
-            to 'build/[target].s'.
+  help,--help,-h    This help.
+  build             Build target to 'build/[target]'. Default.
+  build-disasm      Build target to 'build/[target]' and then disassemble binary
+                    to 'build/[target].s'.
 
 Targets
   all                             Build all targets. Default.
@@ -52,15 +52,8 @@ $srcs
 EOF
 
 # Build Arguments
-cmds="${1:-build}"
+cmd="${1:-build}"
 target="${2-all}"
-
-case "$cmds" in
-  *help* | -h | --help)
-    echo "$help"
-    exit 0
-    ;;
-esac
 
 # Platform options
 # Machine type
@@ -123,27 +116,27 @@ disasm='objdump -S'
 # Build directory
 [ -d build ] || mkdir build
 
-# Parse comma separated commands into the set of command steps
 cmd_build=0
 cmd_disasm=0
 
-IFS=','
-for cmd in $cmds; do
-  case "$cmd" in
-    build)
-      cmd_build=1
-      ;;
-    disasm) # always build in case of disasm command
-      cmd_build=1
-      cmd_disasm=1
-      ;;
-    *)
-      echo "Error: unknown command '$cmd'" >&2;
-      echo "$help" >&2;
-      exit 1;;
-  esac
-done
-unset IFS
+case "$cmd" in
+  help | -h | --help)
+    echo "$help"
+    exit 0
+    ;;
+  build)
+    cmd_build=1
+    ;;
+  build-disasm)
+    cmd_build=1
+    cmd_disasm=1
+    ;;
+  *)
+    echo "Error: unknown command '$cmd'" >&2;
+    echo "$help" >&2;
+    exit 1
+    ;;
+esac
 
 # Build
 build_done=0
@@ -162,7 +155,7 @@ while IFS='
     basename_wo_ext="${basename%.*}"
 
     echo "
-Building '$src'..."
+Building '$src'"
     if [ $cmd_build -eq 1 ]; then
       echo " * build  '$src' -> 'build/$basename_wo_ext'"
       $cc $cc_flags $src -o "build/$basename_wo_ext" $ld_flags || exit $?
