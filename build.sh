@@ -28,7 +28,7 @@ Creates 'build' directory and builds specified 'target' with every command from
 the comma separated list of '[commands]'.
 
 Example:
-  build.sh build,asm,disasm all
+  build.sh --build-disasm microbenchmarks
 
 Options
   --help,-h         This help.
