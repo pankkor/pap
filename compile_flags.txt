@@ -2,6 +2,7 @@
 -Wall
 -Wextra
 -Wpedantic
+-fno-strict-overflow
 -O2
 -g
 -D_DEFAULT_SOURCE

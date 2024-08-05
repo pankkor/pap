@@ -14,7 +14,7 @@ build.sh
 Creates `build` directory and builds all the targets from `src` directory.
 See `-h` for the list of targets and more options.
 
-### Files   
+### Files
 #### Prologue
 - `src/sum/sum.c` - sum of array with and w/o SIMD
 

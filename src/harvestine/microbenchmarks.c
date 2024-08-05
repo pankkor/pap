@@ -171,7 +171,7 @@ int main(int argc, char **argv) {
 
   u64 cpu_timer_freq = get_or_estimate_cpu_timer_freq(300);
   // TODO: 1 sec -> 10 sec
-  u64 try_duration_tsc = 1 * cpu_timer_freq; // 10 seconds
+  u64 try_duration_tsc = 1 * cpu_timer_freq; // 1 seconds
 
   struct tester testers[ARRAY_COUNT(s_tests)] = {0};
   for (u64 i = 0; i < ARRAY_COUNT(testers); ++i) {
