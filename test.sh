@@ -26,6 +26,11 @@ case "$1" in
     ;;
 esac
 
+if ! command -v nasm > /dev/null; then
+    echo "Error: 'nasm' not found"
+    exit 1
+fi
+
 if [ $sim86_decode -gt 0 ]; then
   echo ''
   echo '–––––––––––––––––––––––––––––––'
