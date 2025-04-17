@@ -1,5 +1,3 @@
-#pragma once
-
 #include "timer.h"
 
 #if _WIN32
