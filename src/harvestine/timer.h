@@ -34,7 +34,7 @@ FORCE_INLINE u64 read_cpu_timer(void) {
 }
 
 #elif defined(__x86_64__)
-#include <immintrin.h>
+#include <x86intrin.h>
 
 FORCE_INLINE u64 get_cpu_timer_freq(void) {
   return 0;
