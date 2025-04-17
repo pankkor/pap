@@ -20,7 +20,7 @@ struct profiler_zone {
 
 static struct profiler_zone s_zones[PROFILER_ZONES_SIZE_MAX];
 static struct profiler_zone_mark s_total_mark;
-static u64 s_last_zone_index;
+static u32 s_last_zone_index;
 
 void profiler_begin(void) {
   s_total_mark = profiler_zone_begin(1, "Main", 0);
